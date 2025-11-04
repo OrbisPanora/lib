@@ -482,6 +482,7 @@ class Chunk:
             for block in self.stream_blocks(section=section):
                 yield block
 
+    ## ajouté par nous 
     def set_block(self, block: Block, x: int, y: int, z: int) -> None:
         """
         Sets a block at given coordinates in the chunk.
