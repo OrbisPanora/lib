@@ -1,10 +1,37 @@
 from typing import List
 from .block import Block
 from .biome import Biome
-from .empty_section import EmptySection
+from .empty_section import EmptySection, validate_section_coords
 from .errors import OutOfBoundsCoordinates, EmptySectionAlreadyExists
 from nbt import nbt
 from .legacy import LEGACY_BIOMES_ID_MAP
+
+
+# Constants for chunk dimensions
+CHUNK_SIZE = 16
+CHUNK_HEIGHT = 256
+SECTION_HEIGHT = 16
+BIOME_COUNT = 16 * 16
+
+
+def validate_chunk_coords_xyz(x: int, z: int) -> None:
+    """Validate chunk X and Z coordinates (0-15)."""
+    if not (0 <= x < CHUNK_SIZE):
+        raise OutOfBoundsCoordinates(f'X ({x!r}) must be in range of 0 to 15')
+    if not (0 <= z < CHUNK_SIZE):
+        raise OutOfBoundsCoordinates(f'Z ({z!r}) must be in range of 0 to 15')
+
+
+def validate_chunk_coords_full(x: int, y: int, z: int) -> None:
+    """Validate all chunk coordinates including Y (0-255)."""
+    validate_chunk_coords_xyz(x, z)
+    if not (0 <= y < CHUNK_HEIGHT):
+        raise OutOfBoundsCoordinates(f'Y ({y!r}) must be in range of 0 to 255')
+
+
+def biome_index(x: int, z: int) -> int:
+    """Calculate biome index in chunk."""
+    return z * CHUNK_SIZE + x
 
 
 def _get_legacy_biome_id(biome: Biome) -> int:
@@ -79,16 +106,11 @@ class EmptyChunk:
             Returns ``None`` if the section is empty, meaning the block
             is most likely an air block.
         """
-        if x not in range(16):
-            raise OutOfBoundsCoordinates(f'X ({x!r}) must be in range of 0 to 15')
-        if z not in range(16):
-            raise OutOfBoundsCoordinates(f'Z ({z!r}) must be in range of 0 to 15')
-        if y not in range(256):
-            raise OutOfBoundsCoordinates(f'Y ({y!r}) must be in range of 0 to 255')
-        section = self.sections[y // 16]
+        validate_chunk_coords_full(x, y, z)
+        section = self.sections[y // SECTION_HEIGHT]
         if section is None:
             return
-        return section.get_block(x, y % 16, z)
+        return section.get_block(x, y % SECTION_HEIGHT, z)
 
     def set_block(self, block: Block, x: int, y: int, z: int):
         """
@@ -106,17 +128,12 @@ class EmptyChunk:
         anvil.OutOfBoundCoordidnates
             If X, Y or Z are not in the proper range
         """
-        if x not in range(16):
-            raise OutOfBoundsCoordinates(f'X ({x!r}) must be in range of 0 to 15')
-        if z not in range(16):
-            raise OutOfBoundsCoordinates(f'Z ({z!r}) must be in range of 0 to 15')
-        if y not in range(256):
-            raise OutOfBoundsCoordinates(f'Y ({y!r}) must be in range of 0 to 255')
-        section = self.sections[y // 16]
+        validate_chunk_coords_full(x, y, z)
+        section = self.sections[y // SECTION_HEIGHT]
         if section is None:
-            section = EmptySection(y // 16)
+            section = EmptySection(y // SECTION_HEIGHT)
             self.add_section(section)
-        section.set_block(block, x, y % 16, z)
+        section.set_block(block, x, y % SECTION_HEIGHT, z)
 
     def set_biome(self, biome: Biome, x: int, z: int):
         """
@@ -133,12 +150,8 @@ class EmptyChunk:
             If X or Z are not in the proper range
         
         """
-        if x not in range(16):
-            raise OutOfBoundsCoordinates(f'X ({x!r}) must be in range of 0 to 15')
-        if z not in range(16):
-            raise OutOfBoundsCoordinates(f'Z ({z!r}) must be in range of 0 to 15')
-
-        index = z * 16 + x
+        validate_chunk_coords_xyz(x, z)
+        index = biome_index(x, z)
         self.biomes[index] = biome
 
     def save(self) -> nbt.NBTFile:

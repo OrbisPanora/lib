@@ -1,9 +1,13 @@
 from typing import Tuple, Union, BinaryIO
 from nbt import nbt
 import zlib
+import os
 from io import BytesIO
 import anvil
 from .errors import GZipChunkData
+from .versions import VERSION_21w43a
+import tempfile
+import gzip
 
 class Region:
     """
@@ -96,6 +100,100 @@ class Region:
         :rtype: :class:`anvil.Chunk`
         """
         return anvil.Chunk.from_region(self, chunk_x, chunk_z)
+
+    def save_chunk(self, chunk: 'anvil.Chunk', file_path: str) -> None:
+        """
+        Saves a modified chunk to the region file.
+        
+        Parameters
+        ----------
+        chunk : :class:`anvil.Chunk`
+            The chunk to save
+        file_path : str
+            Path to the region file to save to
+        """
+        nbt_data = chunk.data
+        
+        if chunk.version >= VERSION_21w43a:
+            # Modern format - data is already the root (1.13+)
+            nbt_file = nbt.NBTFile()
+            nbt_file.tags = nbt_data.tags if hasattr(nbt_data, 'tags') else [nbt_data]
+        else:
+            # Legacy format - need to wrap in Level tag
+            nbt_file = nbt.NBTFile()
+            level_tag = nbt.TAG_Compound(name='Level')
+            if hasattr(nbt_data, 'tags'):
+                for tag in nbt_data.tags:
+                    level_tag.tags.append(tag)
+            else:
+                level_tag.tags.append(nbt_data)
+            nbt_file.tags = [level_tag]
+        
+
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.nbt') as tmp:
+                nbt_file.write_file(tmp.name)
+                # Lire le fichier gzip et décompresser
+                with gzip.open(tmp.name, 'rb') as gz_file:
+                    decompressed = gz_file.read()
+                compressed_data = zlib.compress(decompressed)
+        finally:
+            try:
+                os.unlink(tmp.name)
+            except:
+                pass
+        
+        chunk_x, chunk_z = chunk.x, chunk.z
+        off = self.header_offset(chunk_x, chunk_z)
+        
+        data_length = len(compressed_data) + 1  # +1 for compression byte
+        sectors_needed = (data_length + 4095) // 4096  # Round up to 4KiB sectors
+        
+        # Find free space in region (need optimization)
+        current_offset, current_sectors = self.chunk_location(chunk_x, chunk_z)
+        
+        if current_offset == 0:
+            max_offset = 0
+            for z in range(32):
+                for x in range(32):
+                    offset, sectors = self.chunk_location(x, z)
+                    if offset + sectors > max_offset:
+                        max_offset = offset + sectors
+            new_offset = max_offset
+        else:
+            if sectors_needed <= current_sectors:
+                new_offset = current_offset
+            else:
+                max_offset = 0
+                for z in range(32):
+                    for x in range(32):
+                        offset, sectors = self.chunk_location(x, z)
+                        if offset + sectors > max_offset:
+                            max_offset = offset + sectors
+                new_offset = max_offset
+        
+        header_data = bytearray(self.data)
+        header_data[off:off + 3] = new_offset.to_bytes(3, byteorder='big')
+        header_data[off + 3] = sectors_needed
+        self.data = bytes(header_data)
+        
+        chunk_data_start = new_offset * 4096
+        
+        chunk_data = bytearray()
+        chunk_data.extend(len(compressed_data).to_bytes(4, byteorder='big')) 
+        chunk_data.append(2)  # Compression type (2 = zlib)
+        chunk_data.extend(compressed_data)
+        
+        # Pad to sector boundary
+        while len(chunk_data) < sectors_needed * 4096:
+            chunk_data.append(0)
+     
+        region_data = bytearray(self.data)
+        region_data[chunk_data_start:chunk_data_start + len(chunk_data)] = chunk_data
+        self.data = bytes(region_data)
+        
+        with open(file_path, 'wb') as f:
+            f.write(self.data)
 
     @classmethod
     def from_file(cls, file: Union[str, BinaryIO]):

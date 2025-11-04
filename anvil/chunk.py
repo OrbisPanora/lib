@@ -482,6 +482,166 @@ class Chunk:
             for block in self.stream_blocks(section=section):
                 yield block
 
+    def set_block(self, block: Block, x: int, y: int, z: int) -> None:
+        """
+        Sets a block at given coordinates in the chunk.
+        Optimized for Minecraft 1.21.1 only.
+        
+        Parameters
+        ----------
+        block : Block
+            The block to set
+        int x, z
+            In range of 0 to 15
+        int y
+            Global Y coordinate
+            
+        Raises
+        ------
+        OutOfBoundsCoordinates
+            If coordinates are out of bounds
+        """
+        # Need Optimisation
+        if not (0 <= x < 16):
+            raise OutOfBoundsCoordinates(f"X ({x!r}) must be in range of 0 to 15")
+        if not (0 <= z < 16):
+            raise OutOfBoundsCoordinates(f"Z ({z!r}) must be in range of 0 to 15")
+        
+        section_range = _section_height_range(self.version)
+        section_y = y // 16
+        if section_y not in section_range:
+            raise OutOfBoundsCoordinates(f"Y ({y!r}) must be in range of "
+                f"{section_range.start * 16} to {section_range.stop * 16 - 1}")
+        
+        section = self.get_section(section_y)
+        if section is None:
+            section = self._create_section(section_y)
+        
+        local_y = y % 16
+        self._set_block_in_section(section, block, x, local_y, z)
+    
+    def _create_section(self, section_y: int) -> nbt.TAG_Compound:
+        """Create a new empty section."""
+        section = nbt.TAG_Compound()
+        section.tags.append(nbt.TAG_Byte(name='Y', value=section_y))
+        
+        palette = nbt.TAG_List(name='Palette', type=nbt.TAG_Compound)
+        air = nbt.TAG_Compound()
+        air.tags.append(nbt.TAG_String(name='Name', value='minecraft:air'))
+        palette.tags.append(air)
+        section.tags.append(palette)
+        
+        block_states = nbt.TAG_Long_Array(name='BlockStates')
+        block_states.value = [0]
+        section.tags.append(block_states)
+        
+        if self.version >= VERSION_21w43a:
+            if 'sections' not in self.data:
+                sections = nbt.TAG_List(name='sections', type=nbt.TAG_Compound)
+                self.data.tags.append(sections)
+            self.data['sections'].tags.append(section)
+        else:
+            if 'Sections' not in self.data:
+                sections = nbt.TAG_List(name='Sections', type=nbt.TAG_Compound)
+                self.data.tags.append(sections)
+            self.data['Sections'].tags.append(section)
+        
+        return section
+    
+    def _set_block_in_section(self, section: nbt.TAG_Compound, block: Block, 
+                              x: int, y: int, z: int) -> None:
+        """Set block in a section (modern format 1.21.1+)."""
+        palette = _palette_from_section(section)
+        
+        # Find or add block to palette
+        block_index = None
+        block_name = block.name()
+        for i, palette_block in enumerate(palette):
+            if palette_block['Name'].value == block_name:
+                # Check properties match
+                pal_props = palette_block.get('Properties')
+                if self._props_match(pal_props, block.properties):
+                    block_index = i
+                    break
+        
+        if block_index is None:
+            # Add to palette
+            block_index = len(palette)
+            new_block = nbt.TAG_Compound()
+            new_block.tags.append(nbt.TAG_String(name='Name', value=block_name))
+            
+            if block.properties:
+                props = nbt.TAG_Compound()
+                props.name = 'Properties'
+                for k, v in block.properties.items():
+                    props.tags.append(nbt.TAG_String(name=k, value=str(v)))
+                new_block.tags.append(props)
+            
+            palette.tags.append(new_block)
+    
+        states = None
+        blockstates_tag = None
+        
+        if 'block_states' in section:
+            blockstates_tag = section['block_states']
+            if hasattr(blockstates_tag, 'value') and blockstates_tag.value is not None:
+                states = blockstates_tag.value
+            elif 'data' in blockstates_tag:
+                states = blockstates_tag['data'].value
+                states = blockstates_tag['data'].value
+        elif 'BlockStates' in section:
+            blockstates_tag = section['BlockStates']
+            # legacy version (pre 1.13)
+            if hasattr(blockstates_tag, 'value'):
+                states = blockstates_tag.value
+        
+        if states is None:
+            bits = max((len(palette) - 1).bit_length(), 4)
+            states_count = (4096 * bits + 63) // 64 
+            states = [0] * states_count
+            
+            new_blockstates = nbt.TAG_Long_Array(name='BlockStates')
+            new_blockstates.value = states
+            section.tags.append(new_blockstates)
+        else:
+            bits = max((len(palette) - 1).bit_length(), 4)
+        
+        index = y * 256 + z * 16 + x
+        
+        # in 1.21.1 blocks don't span longs
+        state_idx = index // (64 // bits)
+        offset = (index % (64 // bits)) * bits
+        
+        if state_idx >= len(states):
+            states.extend([0] * (state_idx - len(states) + 1))
+        
+        mask = (1 << bits) - 1
+        states[state_idx] &= ~(mask << offset)
+        states[state_idx] |= (block_index & mask) << offset
+    
+    def _props_match(self, nbt_props, block_props: dict) -> bool:
+        """Check if properties match."""
+        if not nbt_props and not block_props:
+            return True
+        if not nbt_props or not block_props:
+            return False
+        for k, v in block_props.items():
+            if k not in nbt_props or nbt_props[k].value != str(v):
+                return False
+        return True
+    
+    def save(self, file_path: str) -> None:
+        """
+        Save the modified chunk to a region file.
+        
+        Parameters
+        ----------
+        file_path : str
+            Path to the region file
+        """
+        region = Region.from_file(file_path)
+        region.save_chunk(self, file_path)
+
     def get_tile_entity(self, x: int, y: int, z: int) -> Optional[nbt.TAG_Compound]:
         """
         Returns the tile entity at given coordinates, or ``None`` if there isn't a tile entity

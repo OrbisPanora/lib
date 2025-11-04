@@ -14,6 +14,21 @@ def bin_append(a, b, length=None):
     length = length or b.bit_length()
     return (a << length) | b
 
+
+def block_index(x: int, y: int, z: int) -> int:
+    """Calculate block index in 16x16x16 section."""
+    return y * 256 + z * 16 + x
+
+
+def validate_section_coords(x: int, y: int, z: int) -> None:
+    """Validate coordinates are within section bounds (0-15)."""
+    if not (0 <= x < 16):
+        raise OutOfBoundsCoordinates(f'X ({x!r}) must be in range of 0 to 15')
+    if not (0 <= y < 16):
+        raise OutOfBoundsCoordinates(f'Y ({y!r}) must be in range of 0 to 15')
+    if not (0 <= z < 16):
+        raise OutOfBoundsCoordinates(f'Z ({z!r}) must be in range of 0 to 15')
+
 class EmptySection:
     """
     Used for making own sections.
@@ -67,9 +82,8 @@ class EmptySection:
         anvil.OutOfBoundsCoordinates
             If coordinates are not in range of 0-15
         """
-        if not self.inside(x, y, z):
-            raise OutOfBoundsCoordinates('X Y and Z must be in range of 0-15')
-        index = y * 256 + z * 16 + x
+        validate_section_coords(x, y, z)
+        index = block_index(x, y, z)
         self.blocks[index] = block
 
     def get_block(self, x: int, y: int, z: int) -> Block:
@@ -86,9 +100,8 @@ class EmptySection:
         anvil.OutOfBoundsCoordinates
             If coordinates are not in range of 0-15
         """
-        if not self.inside(x, y, z):
-            raise OutOfBoundsCoordinates('X Y and Z must be in range of 0-15')
-        index = y * 256 + z * 16 + x
+        validate_section_coords(x, y, z)
+        index = block_index(x, y, z)
         return self.blocks[index] or self.air
 
     def palette(self) -> Tuple[Block]:
@@ -115,15 +128,19 @@ class EmptySection:
             Section's palette. If not given will generate one.
         """
         palette = palette or self.palette()
+        # Create palette index mapping for O(1) lookup
+        palette_map = {block: idx for idx, block in enumerate(palette)}
+        
         bits = max((len(palette) - 1).bit_length(), 4)
         states = array.array('Q')
         current = 0
         current_len = 0
+        
         for block in self.blocks:
             if block is None:
-                index = palette.index(self.air)
+                index = palette_map[self.air]
             else:
-                index = palette.index(block)
+                index = palette_map[block]
             # If it's more than 64 bits then add to list and start over
             # with the remaining bits from last one
             if current_len + bits > 64:

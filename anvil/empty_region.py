@@ -1,5 +1,5 @@
 from typing import Union, List, BinaryIO
-from .empty_chunk import EmptyChunk
+from .empty_chunk import EmptyChunk, CHUNK_HEIGHT
 from .chunk import Chunk
 from .empty_section import EmptySection
 from .block import Block
@@ -48,7 +48,7 @@ class EmptyRegion:
         factor = 32 if chunk else 512
         rx = x // factor
         rz = z // factor
-        return not (rx != self.x or rz != self.z or y not in range(256))
+        return not (rx != self.x or rz != self.z or not (0 <= y < CHUNK_HEIGHT))
 
     def get_chunk(self, x: int, z: int) -> EmptyChunk:
         """
