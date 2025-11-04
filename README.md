@@ -8,12 +8,6 @@ A Python library designed to read, modify, and write **Minecraft world save file
 
 ---
 
-## 💻 Installation
-``` bash
-pip install anvil-parser2
-```
----
-
 ## 💡 Usage
 
 ### Reading Data
