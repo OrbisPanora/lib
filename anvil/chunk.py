@@ -785,3 +785,94 @@ class Chunk:
                             continue
         
         return count
+
+
+    def set_biome(self, biome: Biome, x: int, y: int, z: int) -> None:
+        """
+        Sets the biome at given coordinates in the chunk.
+        For Minecraft 1.21.1 only.
+
+        Parameters
+        ----------
+        biome : Biome
+            The biome to set
+        int x, z
+            In range of 0 to 15
+        int y
+            Global Y coordinate
+
+        Raises
+        ------
+        OutOfBoundsCoordinates
+            If coordinates are out of bounds
+        """
+        if x not in range(16):
+            raise OutOfBoundsCoordinates(f"X ({x!r}) must be in range of 0 to 15")
+        if z not in range(16):
+            raise OutOfBoundsCoordinates(f"Z ({z!r}) must be in range of 0 to 15")
+
+        section_range = _section_height_range(self.version)
+        section_y = y // 16
+        if section_y not in section_range:
+            raise OutOfBoundsCoordinates(f"Y ({y!r}) must be in range of "
+                                         f"{section_range.start * 16} to {section_range.stop * 16 - 1}")
+
+        section = self.get_section(section_y)
+        if section is None:
+            section = self._create_section(section_y)
+
+        if 'biomes' not in section:
+            self._create_biomes_in_section(section)
+
+        biomes_data = section['biomes']
+        palette = biomes_data['palette']
+
+        biome_name = biome.name()
+        palette_index = None
+        for i, pal_biome in enumerate(palette):
+            if pal_biome.value == biome_name:
+                palette_index = i
+                break
+
+        if palette_index is None:
+            palette_index = len(palette)
+            palette.tags.append(nbt.TAG_String(value=biome_name))
+
+        if 'data' in biomes_data:
+            self._set_biome_in_section_data(biomes_data, palette_index, x, y % 16, z)
+
+
+    def _create_biomes_in_section(self, section: nbt.TAG_Compound) -> None:
+        """Create biomes structure in a section."""
+        biomes = nbt.TAG_Compound(name='biomes')
+        palette = nbt.TAG_List(name='palette', type=nbt.TAG_String)
+        palette.tags.append(nbt.TAG_String(value='minecraft:plains'))
+        biomes.tags.append(palette)
+        section.tags.append(biomes)
+
+
+    def _set_biome_in_section_data(self, biomes_data: nbt.TAG_Compound,
+                                   palette_index: int, x: int, y: int, z: int) -> None:
+        """Set biome index in section data array."""
+        index = (y // 4) * 16 + (z // 4) * 4 + (x // 4)
+
+        palette = biomes_data['palette']
+        bits = max((len(palette) - 1).bit_length(), 1)
+
+        if 'data' not in biomes_data:
+            total_bits = 64 * bits
+            states_count = (total_bits + 63) // 64
+            data_array = nbt.TAG_Long_Array(name='data')
+            data_array.value = [0] * states_count
+            biomes_data.tags.append(data_array)
+
+        data = biomes_data['data'].value
+        state_idx = index // (64 // bits)
+        offset = (index % (64 // bits)) * bits
+
+        if state_idx >= len(data):
+            data.extend([0] * (state_idx - len(data) + 1))
+
+        mask = (1 << bits) - 1
+        data[state_idx] &= ~(mask << offset)
+        data[state_idx] |= (palette_index & mask) << offset
