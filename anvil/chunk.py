@@ -833,9 +833,8 @@ class Chunk:
             # If it's already the same biome, nothing to do
             if palette[0].value == biome_name:
                 return
-            # Otherwise, replace the palette entry
-            palette[0].value = biome_name
-            return
+            # Otherwise, we need to create a data array to support multiple biomes
+            # Don't just replace the palette entry as that would change the entire section
 
         # Find or add biome in palette
         palette_index = None
@@ -960,6 +959,7 @@ class Chunk:
             total_bits = 64 * new_bits
             states_count = (total_bits + 63) // 64
             data_array = nbt.TAG_Long_Array(name='data')
+            # Initialize all positions to 0 (first palette entry)
             data_array.value = [0] * states_count
             biomes_data.tags.append(data_array)
 
