@@ -692,3 +692,96 @@ class Chunk:
         if nbt_data is None:
             raise ChunkNotFound(f"Could not find chunk ({chunk_x}, {chunk_z})")
         return cls(nbt_data)
+    
+    def replace_block_at(self, x: int, y: int, z: int, new_block: Union[str, Block]) -> bool:
+        """
+        Replace a single block at specific coordinates.
+        
+        Parameters
+        ----------
+        x : int
+            X coordinate (0-15)
+        y : int
+            Global Y coordinate
+        z : int
+            Z coordinate (0-15)
+        new_block : Union[str, Block]
+            The replacement block (either a block name like "minecraft:dirt" or a Block object)
+        
+        Returns
+        -------
+        bool
+            True if the block was replaced, False otherwise
+        
+        Example
+        -------
+        >>> chunk.replace_block_at(5, 64, 10, "minecraft:diamond_block")
+        >>> chunk.replace_block_at(5, 64, 10, Block.from_name("minecraft:stone"))
+        """
+        # Convert string to Block object if needed
+        if isinstance(new_block, str):
+            new_block = Block.from_name(new_block)
+        
+        try:
+            self.set_block(new_block, x, y, z)
+            return True
+        except OutOfBoundsCoordinates:
+            return False
+
+    def replace_blocks(self, old_block: Union[str, Block], new_block: Union[str, Block]) -> int:
+        """
+        Replace all occurrences of a specific block type with another block type in the chunk.
+        
+        Parameters
+        ----------
+        old_block : Union[str, Block]
+            The block to replace (either a block name like "minecraft:stone" or a Block object)
+        new_block : Union[str, Block]
+            The replacement block (either a block name like "minecraft:dirt" or a Block object)
+        
+        Returns
+        -------
+        int
+            The number of blocks replaced
+        
+        Example
+        -------
+        >>> chunk.replace_blocks("minecraft:stone", "minecraft:dirt")
+        >>> chunk.replace_blocks(Block.from_name("minecraft:oak_log"), Block.from_name("minecraft:birch_log"))
+        """
+        # Convert strings to Block objects if needed
+        if isinstance(old_block, str):
+            old_block = Block.from_name(old_block)
+        if isinstance(new_block, str):
+            new_block = Block.from_name(new_block)
+        
+        old_block_name = old_block.name()
+        count = 0
+        
+        section_range = _section_height_range(self.version)
+        
+        for section_y in section_range:
+            section = self.get_section(section_y)
+            if section is None:
+                continue
+            
+            # Iterate through all blocks in the section
+            for local_y in range(16):
+                for z in range(16):
+                    for x in range(16):
+                        # Calculate global Y coordinate
+                        global_y = section_y * 16 + local_y
+                        
+                        try:
+                            current_block = self.get_block(x, global_y, z)
+                            
+                            # Check if block matches (name and properties if specified)
+                            if current_block.name() == old_block_name:
+                                if not old_block.properties or current_block.properties == old_block.properties:
+                                    if self.replace_block_at(x, global_y, z, new_block):
+                                        count += 1
+                        except (IndexError, OutOfBoundsCoordinates):
+                            # Skip blocks that can't be accessed
+                            continue
+        
+        return count
