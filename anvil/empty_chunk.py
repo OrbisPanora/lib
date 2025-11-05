@@ -62,7 +62,7 @@ class EmptyChunk:
         self.z = z
         self.sections: List[EmptySection] = [None]*16
         self.biomes: List[Biome] = [Biome('ocean')]*16*16
-        self.version = 1976
+        self.version = 3955 #1.21.1 DataVersion (https://minecraft.wiki/w/Java_Edition_1.21.1#:~:text=1.21.1%20is%20a%20minor%20hotfix%20update%20to,this%20version%20are%20compatible%20with%201.21%20clients.)
 
     def add_section(self, section: EmptySection, replace: bool = True):
         """
