@@ -41,7 +41,6 @@ def _states_from_section(section: nbt.TAG_Compound) -> list:
 
         # makes sure the number is unsigned
         # by adding 2^64
-        # could also use ctypes.c_ulonglong(n).value but that'd require an extra import
 
         return [state if state >= 0 else states + 2 ** 64 
             for state in states.value]
@@ -532,8 +531,12 @@ class Chunk:
         palette.tags.append(air)
         section.tags.append(palette)
         
+        #Modif par nous
+        bits = 4
+        total_bits = 4096 * bits
+        states_count = (total_bits + 63) // 64 
         block_states = nbt.TAG_Long_Array(name='BlockStates')
-        block_states.value = [0]
+        block_states.value = [0] * states_count
         section.tags.append(block_states)
         
         if self.version >= VERSION_21w43a:
@@ -554,19 +557,16 @@ class Chunk:
         """Set block in a section (modern format 1.21.1+)."""
         palette = _palette_from_section(section)
         
-        # Find or add block to palette
         block_index = None
         block_name = block.name()
         for i, palette_block in enumerate(palette):
             if palette_block['Name'].value == block_name:
-                # Check properties match
                 pal_props = palette_block.get('Properties')
                 if self._props_match(pal_props, block.properties):
                     block_index = i
                     break
         
         if block_index is None:
-            # Add to palette
             block_index = len(palette)
             new_block = nbt.TAG_Compound()
             new_block.tags.append(nbt.TAG_String(name='Name', value=block_name))
@@ -585,11 +585,10 @@ class Chunk:
         
         if 'block_states' in section:
             blockstates_tag = section['block_states']
-            if hasattr(blockstates_tag, 'value') and blockstates_tag.value is not None:
+            if 'data' in blockstates_tag:
+                states = blockstates_tag['data'].value
+            elif hasattr(blockstates_tag, 'value') and blockstates_tag.value is not None:
                 states = blockstates_tag.value
-            elif 'data' in blockstates_tag:
-                states = blockstates_tag['data'].value
-                states = blockstates_tag['data'].value
         elif 'BlockStates' in section:
             blockstates_tag = section['BlockStates']
             # legacy version (pre 1.13)
@@ -598,12 +597,30 @@ class Chunk:
         
         if states is None:
             bits = max((len(palette) - 1).bit_length(), 4)
-            states_count = (4096 * bits + 63) // 64 
+            total_bits = 4096 * bits
+            states_count = (total_bits + 63) // 64 
             states = [0] * states_count
             
-            new_blockstates = nbt.TAG_Long_Array(name='BlockStates')
-            new_blockstates.value = states
-            section.tags.append(new_blockstates)
+            if self.version >= VERSION_21w43a:
+                if 'block_states' not in section:
+                    block_states_container = nbt.TAG_Compound(name='block_states')
+                    block_states_tag = nbt.TAG_Long_Array(name='data')
+                    block_states_tag.value = states
+                    block_states_container.tags.append(block_states_tag)
+                    section.tags.append(block_states_container)
+                else:
+                    block_states_container = section['block_states']
+                    if 'data' in block_states_container:
+                        block_states_tag = block_states_container['data']
+                        block_states_tag.value = states
+                    else:
+                        block_states_tag = nbt.TAG_Long_Array(name='data')
+                        block_states_tag.value = states
+                        block_states_container.tags.append(block_states_tag)
+            else:
+                new_blockstates = nbt.TAG_Long_Array(name='BlockStates')
+                new_blockstates.value = states
+                section.tags.append(new_blockstates)
         else:
             bits = max((len(palette) - 1).bit_length(), 4)
         
