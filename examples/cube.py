@@ -5,32 +5,30 @@ import pattern
 
 # Create a new region with the `EmptyRegion` class at 0, 0 (in region coords)
 #region = anvil.EmptyRegion(-2, -2)
-region = anvil.Region.from_file('C:/Users/ssim9/AppData/Roaming/.minecraft/saves/testop/region/r.0.0.mca')
-chunk = region.get_chunk(4,4)
+# region = anvil.Region.from_file('C:/Users/ssim9/AppData/Roaming/.minecraft/saves/testop/region/r.0.0.mca')
+# chunk = region.get_chunk(4,4)
 
-cube = pattern.cube.Cube(blocks = [anvil.Block('minecraft', 'gold_block')], size = [8, 120, 14], region = region, chunk = chunk, down = -2)
-cube.filled()
-
-
+# cube = pattern.cube.Cube(blocks = [anvil.Block('minecraft', 'gold_block')], size = [8, 120, 14], region = region, chunk = chunk, down = -2)
+# cube.filled()
 
 
+word = anvil.World('C:/Users/ssim9/AppData/Roaming/.minecraft/saves/testop')
+#region00 = word.get_region(0,0)
 
-# # Create `Block` objects that are used to set blocks
-# stone = anvil.Block('minecraft', 'stone')
-# dirt = anvil.Block('minecraft', 'dirt')
+cube = pattern.cube.Cube(blocks = [anvil.Block('minecraft', 'diamond_block')], point = (0, 60, 0), size = (18, 5, 18))
+dictblockcube = cube.filled()
 
-# # pour region
-# base_x = chunk.x * -1024   # = 512
-# base_z = chunk.z * -1024  # = 512
+pyramid = pattern.pyramid.Pyramid(blocks = [anvil.Block('minecraft', 'sandstone')], point = (30, 60, 0), size = (18, 9, 18))
+dictblockpyramid = pyramid.filled()
 
+spiral = pattern.spiral.Spiral(blocks = [anvil.Block('minecraft', 'oak_log')], point = (60, 60, 0), size = (18, 30, 18))
+dictblockspiral = spiral.filled()
 
-# # Make a 16x16x16 cube of either stone or dirt blocks
-# for y in range(16):
-#     for z in range(16):
-#         for x in range(16):
-#             #gx = x+base_x
-#             #gz = z+base_z
-#             chunk.set_block(choice((stone, dirt)), x, y+100, z)
+####
 
-# Save to a file
-chunk.save('C:/Users/ssim9/AppData/Roaming/.minecraft/saves/testop/region/r.0.0.mca')
+# world.apply()
+# pour changer dans region
+
+####
+
+word.save()

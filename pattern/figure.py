@@ -3,18 +3,14 @@ from anvil.chunk import Chunk
 from anvil.block import Block
 
 class Figure():
-    region : Region
-    chunk : Chunk
     blocks : list[Block]
-    size : list[int]
-    down : int
+    size : tuple[int, int, int]
+    point : tuple[int, int, int]
 
-    def __init__(self, blocks : list[Block], size : list[int], region : Region = None, chunk : Chunk = None, down : int = 0):
-        self.region = region
-        self.chunk = chunk
+    def __init__(self, blocks : list[Block], point : tuple[int, int, int], size : tuple[int, int, int]):
+        self.point = point
         self.blocks = blocks
         self.size = size
-        self.down = down
 
     def empty(self):
         raise NotImplementedError("Subclasses must implement this method.")
