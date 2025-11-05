@@ -189,6 +189,12 @@ class Region:
             chunk_data.append(0)
      
         region_data = bytearray(self.data)
+        
+        # Ensure region_data is large enough
+        required_size = chunk_data_start + len(chunk_data)
+        if len(region_data) < required_size:
+            region_data.extend([0] * (required_size - len(region_data)))
+        
         region_data[chunk_data_start:chunk_data_start + len(chunk_data)] = chunk_data
         self.data = bytes(region_data)
         

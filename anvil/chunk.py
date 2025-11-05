@@ -826,8 +826,18 @@ class Chunk:
 
         biomes_data = section['biomes']
         palette = biomes_data['palette']
-
         biome_name = biome.name()
+
+        # Check if this is a single-biome section without data array
+        if len(palette) == 1 and 'data' not in biomes_data:
+            # If it's already the same biome, nothing to do
+            if palette[0].value == biome_name:
+                return
+            # Otherwise, replace the palette entry
+            palette[0].value = biome_name
+            return
+
+        # Find or add biome in palette
         palette_index = None
         for i, pal_biome in enumerate(palette):
             if pal_biome.value == biome_name:
@@ -838,8 +848,7 @@ class Chunk:
             palette_index = len(palette)
             palette.tags.append(nbt.TAG_String(value=biome_name))
 
-        if 'data' in biomes_data:
-            self._set_biome_in_section_data(biomes_data, palette_index, x, y % 16, z)
+        self._set_biome_in_section_data(biomes_data, palette_index, x, y % 16, z)
 
 
     def _create_biomes_in_section(self, section: nbt.TAG_Compound) -> None:
@@ -851,28 +860,145 @@ class Chunk:
         section.tags.append(biomes)
 
 
+    def _resize_biome_data_array(self, old_data: list, old_bits: int, new_bits: int) -> list:
+        """
+        Resize the biome data array when palette size changes.
+        Extracts palette indices from old bit size and repackages them with new bit size.
+        """
+        # Extract all 64 palette indices from the old data array
+        indices = []
+        for i in range(64):
+            # Calculate which long and bit offset for old format
+            bit_index = i * old_bits
+            state_idx = bit_index // 64
+            offset = bit_index % 64
+            
+            if state_idx < len(old_data):
+                mask = (1 << old_bits) - 1
+                # Check if the value spans two longs
+                if offset + old_bits <= 64:
+                    palette_idx = (old_data[state_idx] >> offset) & mask
+                else:
+                    # Value spans two longs
+                    bits_in_first = 64 - offset
+                    first_part = (old_data[state_idx] >> offset) & ((1 << bits_in_first) - 1)
+                    if state_idx + 1 < len(old_data):
+                        bits_in_second = old_bits - bits_in_first
+                        second_part = old_data[state_idx + 1] & ((1 << bits_in_second) - 1)
+                        palette_idx = first_part | (second_part << bits_in_first)
+                    else:
+                        palette_idx = first_part
+                indices.append(palette_idx)
+            else:
+                indices.append(0)
+        
+        # Repack indices with new bit size
+        total_bits = 64 * new_bits
+        states_count = (total_bits + 63) // 64
+        new_data = [0] * states_count
+        
+        for i, palette_idx in enumerate(indices):
+            # Calculate which long and bit offset for new format
+            bit_index = i * new_bits
+            state_idx = bit_index // 64
+            offset = bit_index % 64
+            
+            if state_idx < len(new_data):
+                mask = (1 << new_bits) - 1
+                # Check if the value spans two longs
+                if offset + new_bits <= 64:
+                    new_data[state_idx] |= (palette_idx & mask) << offset
+                else:
+                    # Value spans two longs
+                    bits_in_first = 64 - offset
+                    first_part = palette_idx & ((1 << bits_in_first) - 1)
+                    new_data[state_idx] |= first_part << offset
+                    if state_idx + 1 < len(new_data):
+                        bits_in_second = new_bits - bits_in_first
+                        second_part = (palette_idx >> bits_in_first) & ((1 << bits_in_second) - 1)
+                        new_data[state_idx + 1] |= second_part
+        
+        return new_data
+
+
     def _set_biome_in_section_data(self, biomes_data: nbt.TAG_Compound,
                                    palette_index: int, x: int, y: int, z: int) -> None:
-        """Set biome index in section data array."""
-        index = (y // 4) * 16 + (z // 4) * 4 + (x // 4)
-
+        """
+        Set biome index in section data array.
+        
+        Handles palette optimization: when only one biome type exists, removes the data array.
+        When multiple biomes exist, creates/resizes the data array as needed.
+        """
         palette = biomes_data['palette']
-        bits = max((len(palette) - 1).bit_length(), 1)
+        
+        # If palette has only one biome and we're setting to index 0, no data array needed
+        if len(palette) == 1 and palette_index == 0:
+            # Remove data array if it exists (optimization)
+            if 'data' in biomes_data:
+                for i, tag in enumerate(biomes_data.tags):
+                    if tag.name == 'data':
+                        del biomes_data.tags[i]
+                        break
+            return
+        
+        # Calculate position in the biome array (4x4x4 blocks per biome)
+        index = (y // 4) * 16 + (z // 4) * 4 + (x // 4)
+        
+        new_bits = max((len(palette) - 1).bit_length(), 1)
 
+        # Check if we need to resize the data array due to palette growth
+        if 'data' in biomes_data:
+            old_bits = max((len(palette) - 2).bit_length(), 1) if len(palette) > 1 else 1
+            if new_bits != old_bits:
+                # Palette grew and needs more bits, so we need to resize the data array
+                old_data = biomes_data['data'].value
+                new_data = self._resize_biome_data_array(old_data, old_bits, new_bits)
+                biomes_data['data'].value = new_data
+        
+        # Create data array if it doesn't exist
         if 'data' not in biomes_data:
-            total_bits = 64 * bits
+            total_bits = 64 * new_bits
             states_count = (total_bits + 63) // 64
             data_array = nbt.TAG_Long_Array(name='data')
             data_array.value = [0] * states_count
             biomes_data.tags.append(data_array)
 
         data = biomes_data['data'].value
-        state_idx = index // (64 // bits)
-        offset = (index % (64 // bits)) * bits
+        
+        # Calculate which long and bit offset
+        bit_index = index * new_bits
+        state_idx = bit_index // 64
+        offset = bit_index % 64
 
-        if state_idx >= len(data):
-            data.extend([0] * (state_idx - len(data) + 1))
+        # Ensure data array is large enough
+        required_size = state_idx + 1
+        if offset + new_bits > 64:
+            required_size = state_idx + 2
+        
+        if len(data) < required_size:
+            # Create new properly sized array
+            new_data = list(data) + [0] * (required_size - len(data))
+            biomes_data['data'].value = new_data
+            data = new_data
 
-        mask = (1 << bits) - 1
-        data[state_idx] &= ~(mask << offset)
-        data[state_idx] |= (palette_index & mask) << offset
+        mask = (1 << new_bits) - 1
+        
+        # Check if the value spans two longs
+        if offset + new_bits <= 64:
+            # Value fits in one long
+            data[state_idx] &= ~(mask << offset)
+            data[state_idx] |= (palette_index & mask) << offset
+        else:
+            # Value spans two longs
+            bits_in_first = 64 - offset
+            bits_in_second = new_bits - bits_in_first
+            
+            # Clear and set first part
+            first_mask = (1 << bits_in_first) - 1
+            data[state_idx] &= ~(first_mask << offset)
+            data[state_idx] |= ((palette_index & first_mask) << offset)
+            
+            # Clear and set second part
+            second_mask = (1 << bits_in_second) - 1
+            data[state_idx + 1] &= ~second_mask
+            data[state_idx + 1] |= ((palette_index >> bits_in_first) & second_mask)
