@@ -11,7 +11,7 @@ import gzip
 
 class Region:
     """
-    Read-only region
+    Region handler for Minecraft worlds
 
     Attributes
     ----------
@@ -101,6 +101,38 @@ class Region:
         """
         return anvil.Chunk.from_region(self, chunk_x, chunk_z)
 
+    def set_block(self, block: 'anvil.Block', x: int, y: int, z: int, file_path: str) -> None:
+        """
+        Sets a block at the specified coordinates and saves the changes to the region file.
+        
+        Parameters
+        ----------
+        block : :class:`anvil.Block`
+            The block to set
+        x : int
+            Global X coordinate
+        y : int
+            Global Y coordinate
+        z : int
+            Global Z coordinate
+        file_path : str
+            Path to the region file to save to
+        """
+        chunk_x = x >> 4  
+        chunk_z = z >> 4  
+        
+        local_x = x & 15  
+        local_z = z & 15  
+        
+        try:
+            chunk = self.get_chunk(chunk_x % 32, chunk_z % 32)
+            
+            chunk.set_block(block, local_x, y, local_z)
+            
+            self.save_chunk(chunk, file_path)
+        except Exception as e:
+            raise Exception(f"Failed to set block at ({x}, {y}, {z}): {e}")
+    
     def save_chunk(self, chunk: 'anvil.Chunk', file_path: str) -> None:
         """
         Saves a modified chunk to the region file.
@@ -133,7 +165,6 @@ class Region:
         try:
             with tempfile.NamedTemporaryFile(delete=False, suffix='.nbt') as tmp:
                 nbt_file.write_file(tmp.name)
-                # Lire le fichier gzip et décompresser
                 with gzip.open(tmp.name, 'rb') as gz_file:
                     decompressed = gz_file.read()
                 compressed_data = zlib.compress(decompressed)
