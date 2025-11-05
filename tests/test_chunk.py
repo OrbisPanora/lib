@@ -1,24 +1,21 @@
 from anvil import Region, Block
 
-# Charger une région
+# Load region file
 region = Region.from_file('r.0.0.mca')
-
-# Obtenir un chunk
 chunk = region.get_chunk(0, 0)
 
-# Test 1: Remplacer un seul bloc
-print("Test 1: Remplacer un bloc à (5, 64, 10)")
+# Replace single block
+print("Test 1: Replace single block at (5, 64, 10)")
 success = chunk.replace_block_at(5, 64, 10, "minecraft:diamond_block")
-print(f"Succès: {success}")
-block = chunk.get_block(5, 64, 10)
-print(f"Bloc après remplacement: {block}")
+print(f"Success: {success}")
+print(f"Block after: {chunk.get_block(5, 64, 10)}")
 
-# Test 2: Remplacer toute la terre par des blocs de diamant
-print("\nTest 2: Remplacer toute la terre par des blocs de diamant")
+# Replace all dirt with diamond blocks
+print("\nTest 2: Replace all dirt with diamond blocks")
 count = chunk.replace_blocks("minecraft:dirt", "minecraft:diamond_block")
-print(f"Nombre de blocs remplacés: {count}")
+print(f"Blocks replaced: {count}")
 
-# Sauvegarder les modifications
-print("\nSauvegarde du chunk...")
+# Save changes
+print("\nSaving chunk...")
 region.save_chunk(chunk, 'r.0.0_modified.mca')
-print("\nChunk sauvegardé dans r.0.0_modified.mca!")
+print("Chunk saved to r.0.0_modified.mca!")
