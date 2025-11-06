@@ -149,21 +149,15 @@ class World:
         z: int
             Global Z coordinate
         """
-        print("TEST00")
         region_x = x >> 9  # x >> 9  <≡>  x // 512
         region_z = z >> 9  # z >> 9  <≡>  z // 512
 
         region = self.get_region(region_x, region_z)
-        print("TEST01")
         try:
-            print("TEST02")
             if isinstance(region, Region):
-                print("TEST10")
                 region_path = os.path.join(self.region_dir, f"r.{region_x}.{region_z}.mca")
-                print(x,y,z, " coordonnes block dans worldset")
                 region.set_block(block, x, y, z, region_path)
             else:
-                print("TEST20")
                 region.set_block(block, x, y, z)  ## a fixééééé on peut pas appelle fun sans paramettre
         except Exception as e:
             if isinstance(region, Region):
@@ -189,7 +183,6 @@ class World:
         Apply the given dictionary of changes to the world.
         """
         for k, v in dictionary.items():
-            print(f"Setting block {v} at {k}")
             self.set_block(v, k[0], k[1], k[2])
 
     def save(self) -> None:

@@ -686,17 +686,13 @@ class Chunk:
         anvil.ChunkNotFound
             If a chunk is outside this region or hasn't been generated yet
         """
-        print("TEST1000")
-        #print(region)
         if isinstance(region, str):
             print("TEST1010")
             region = Region.from_file(region)
         nbt_data = region.chunk_data(chunk_x, chunk_z)
-        print("TEST1001")
         if nbt_data is None:
-            print("TEST1020")
             raise ChunkNotFound(f"Could not find chunk ({chunk_x}, {chunk_z})")
-        return cls(nbt_data)  ### tester ici
+        return cls(nbt_data)
     
     def replace_block_at(self, x: int, y: int, z: int, new_block: Union[str, Block]) -> bool:
         """

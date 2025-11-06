@@ -15,16 +15,15 @@ from pattern import Cube, Pyramid, Spiral
 word = anvil.World('C:/Users/ssim9/AppData/Roaming/.minecraft/saves/testop2')
 #region00 = word.get_region(0,0)
 
-# cube = pattern.cube.Cube(blocks = [anvil.Block('minecraft', 'diamond_block')], point = (200, 160, 200), size = (3,3,3))
-# dictblockcube = cube.filled()
-# print(dictblockcube)
-# word.apply(dictblockcube)
+cube = Cube(blocks = [anvil.Block('minecraft', 'diamond_block'), anvil.Block('minecraft', 'gold_block')], point = (200, 160, 200), size = (3,3,3))
+dictblockcube = cube.filled()
+word.apply(dictblockcube)
 
-# pyramid = Pyramid(blocks = [anvil.Block('minecraft', 'sandstone')], point = (300, 160, 200), size = (18, 9, 18))
-# dictblockpyramid = pyramid.filled()
-# word.apply(dictblockpyramid)
+pyramid = Pyramid(blocks = [anvil.Block('minecraft', 'sandstone'), anvil.Block('minecraft', 'gold_block')], point = (300, 160, 200), size = (18, 9, 18))
+dictblockpyramid = pyramid.filled()
+word.apply(dictblockpyramid)
 
-spiral = Spiral(blocks = [anvil.Block('minecraft', 'oak_log')], point = (200, 160, 300), size = (18, 30, 18))
+spiral = Spiral(blocks = [anvil.Block('minecraft', 'oak_log'), anvil.Block('minecraft', 'gold_block')], point = (200, 160, 300), size = (18, 30, 18))
 dictblockspiral = spiral.filled()
 word.apply(dictblockspiral)
 
