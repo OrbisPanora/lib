@@ -5,7 +5,7 @@ import sys
 import time
 import shutil
 
-""" WORLD_FOLDER = sys.argv[1]
+WORLD_FOLDER = sys.argv[1]
 structure_file = sys.argv[5]
 
 if not os.path.exists(WORLD_FOLDER):
@@ -38,7 +38,7 @@ try:
     
     print(f"Placing a diamond block at coordinates ({spawn_x}, {spawn_y}, {spawn_z})...")
     start_time = time.time()
-    world = structure.generate(world, spawn_x, spawn_y, spawn_z)
+    world = structure.generate_in_world(world, spawn_x, spawn_y, spawn_z)
 
     print("Saving changes...")
     world.save()
@@ -59,10 +59,10 @@ try:
         
 except Exception as e:
     print(f"Error: {e}")
-    sys.exit(1) """
+    sys.exit(1)
 
 
-if len(sys.argv) != 5:
+""" if len(sys.argv) != 5:
     print("Usage: python test_structure.py <region_file.mca> <chunk_x> <chunk_z> <structure.nbt>")
     print("Example: python test_structure.py r.0.0.mca 0 0 plains_small_house.nbt")
     sys.exit(1)
@@ -79,6 +79,6 @@ chunk = anvil.Chunk.from_region(output_file, chunk_x, chunk_z)
 print(f"Chunk loaded: ({chunk.x}, {chunk.z})")
 
 structure = anvil.Structure.from_file(structure_file)
-chunk = structure.generate(chunk, 100)
+chunk = structure.generate_in_chunk(chunk, 100)
 
-chunk.save(output_file)
+chunk.save(output_file) """

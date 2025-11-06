@@ -40,12 +40,12 @@ class Structure:
             raise TypeError("Error from file to get datas")
         return cls(data)
     
-    def generate(self, world: World, x:int, y:int, z:int):
+    def generate_in_world(self, world: World, x:int, y:int, z:int):
         for block in self.blocks:
             world.set_block(self.palette[block[1]], block[0][0]+x, block[0][1]+y, block[0][2]+z)
         return world
     
-    def generate(self, chunk: Chunk, y:int):
+    def generate_in_chunk(self, chunk: Chunk, y:int):
         for block in self.blocks:
             chunk.set_block(self.palette[block[1]], block[0][0], block[0][1]+y, block[0][2])
         return chunk
