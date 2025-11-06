@@ -1,4 +1,4 @@
-import _path
+import examples._path
 import anvil
 from random import choice
 from pattern.figure import Figure

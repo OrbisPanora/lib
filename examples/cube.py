@@ -1,30 +1,32 @@
 import _path
 import anvil
 from random import choice
-import pattern
+from pattern import Cube, Pyramid, Spiral
 
 # Create a new region with the `EmptyRegion` class at 0, 0 (in region coords)
 #region = anvil.EmptyRegion(-2, -2)
 # region = anvil.Region.from_file('C:/Users/ssim9/AppData/Roaming/.minecraft/saves/testop/region/r.0.0.mca')
 # chunk = region.get_chunk(4,4)
 
-# cube = pattern.cube.Cube(blocks = [anvil.Block('minecraft', 'gold_block')], size = [8, 120, 14], region = region, chunk = chunk, down = -2)
+# cube = Cube(blocks = [anvil.Block('minecraft', 'gold_block')], size = [8, 120, 14], region = region, chunk = chunk, down = -2)
 # cube.filled()
 
 
 word = anvil.World('C:/Users/ssim9/AppData/Roaming/.minecraft/saves/testop2')
 #region00 = word.get_region(0,0)
 
-cube = pattern.cube.Cube(blocks = [anvil.Block('minecraft', 'air')], point = (200, 160, 200), size = (3,3,3))
-dictblockcube = cube.filled()
-print(dictblockcube)
-word.apply(dictblockcube)
+# cube = pattern.cube.Cube(blocks = [anvil.Block('minecraft', 'diamond_block')], point = (200, 160, 200), size = (3,3,3))
+# dictblockcube = cube.filled()
+# print(dictblockcube)
+# word.apply(dictblockcube)
 
-# pyramid = pattern.pyramid.Pyramid(blocks = [anvil.Block('minecraft', 'sandstone')], point = (30, 60, 0), size = (18, 9, 18))
+# pyramid = Pyramid(blocks = [anvil.Block('minecraft', 'sandstone')], point = (300, 160, 200), size = (18, 9, 18))
 # dictblockpyramid = pyramid.filled()
+# word.apply(dictblockpyramid)
 
-# spiral = pattern.spiral.Spiral(blocks = [anvil.Block('minecraft', 'oak_log')], point = (60, 60, 0), size = (18, 30, 18))
-# dictblockspiral = spiral.filled()
+spiral = Spiral(blocks = [anvil.Block('minecraft', 'oak_log')], point = (200, 160, 300), size = (18, 30, 18))
+dictblockspiral = spiral.filled()
+word.apply(dictblockspiral)
 
 ####
 
