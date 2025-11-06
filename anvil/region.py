@@ -288,3 +288,85 @@ class Region:
             return False
         except Exception:
             return False
+
+    def replace_blocks(
+        self,
+        old_block: Union[str, 'anvil.Block'],
+        new_block: Union[str, 'anvil.Block'],
+        file_path: str,
+        chunks: Union[Tuple[int, int], list[Tuple[int, int]], None] = None
+    ) -> int:
+        """
+        Replace all occurrences of a specific block type with another block type
+        in one or more chunks of the region.
+
+        Parameters
+        ----------
+        old_block : Union[str, anvil.Block]
+            The block to replace (either a block name like "minecraft:stone" or a Block object)
+        new_block : Union[str, anvil.Block]
+            The replacement block (either a block name like "minecraft:dirt" or a Block object)
+        file_path : str
+            Path to the region file to save to
+        chunks : Union[Tuple[int, int], list[Tuple[int, int]], None], optional
+            Either:
+            - A single chunk coordinate tuple (chunk_x, chunk_z)
+            - A list of chunk coordinate tuples [(chunk_x1, chunk_z1), (chunk_x2, chunk_z2), ...]
+            - None to process all chunks in the region (default)
+
+        Returns
+        -------
+        int
+            The total number of blocks replaced across all processed chunks
+
+        Examples
+        --------
+        >>> # Replace in a single chunk
+        >>> count = region.replace_blocks("minecraft:stone", "minecraft:dirt", "r.0.0.mca", chunks=(5, 10))
+
+        >>> # Replace in multiple chunks
+        >>> count = region.replace_blocks("minecraft:oak_log", "minecraft:birch_log", "r.0.0.mca",
+        ...                               chunks=[(0, 0), (1, 0), (0, 1)])
+
+        >>> # Replace in all chunks of the region
+        >>> count = region.replace_blocks("minecraft:sand", "minecraft:gravel", "r.0.0.mca")
+        """
+        from typing import List
+
+        total_count = 0
+        chunks_to_process: List[Tuple[int, int]] = []
+
+        # Determine which chunks to process
+        if chunks is None:
+            # Process all chunks in the region (32x32)
+            for chunk_z in range(32):
+                for chunk_x in range(32):
+                    if self.chunk_location(chunk_x, chunk_z) != (0, 0):
+                        chunks_to_process.append((chunk_x, chunk_z))
+        elif isinstance(chunks, tuple) and len(chunks) == 2:
+            # Single chunk
+            chunks_to_process.append(chunks)
+        elif isinstance(chunks, list):
+            # Multiple chunks
+            chunks_to_process = chunks
+        else:
+            raise ValueError("chunks parameter must be a tuple (x, z), a list of tuples, or None")
+
+        # Process each chunk
+        for chunk_x, chunk_z in chunks_to_process:
+            try:
+                chunk = self.get_chunk(chunk_x % 32, chunk_z % 32)
+
+                # Replace blocks in this chunk
+                count = chunk.replace_blocks(old_block, new_block)
+
+                if count > 0:
+                    # Save the chunk if any blocks were replaced
+                    self.save_chunk(chunk, file_path)
+                    total_count += count
+
+            except Exception:
+                # Skip chunks that can't be loaded or processed
+                continue
+
+        return total_count

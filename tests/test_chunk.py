@@ -12,7 +12,7 @@ print(f"Block after: {chunk.get_block(5, 64, 10)}")
 
 # Test 2: Replace all dirt with diamond blocks via chunk
 print("\nTest 2: Replace all dirt with diamond blocks via chunk")
-count = chunk.replace_blocks("minecraft:sand", "minecraft:diamond_block")
+count = chunk.replace_blocks("minecraft:dirt", "minecraft:diamond_block")
 print(f"Blocks replaced: {count}")
 
 # Test 3: Replace single block via region (NEW)
