@@ -156,16 +156,13 @@ class World:
         
         try:
             if isinstance(region, Region):
-                region_path = os.path.join(self.region_dir, f"r.{region_x}.{region_z}.mca")
-                region.set_block(block, x, y, z, region_path)
-            else:
+                region.set_block(block, x, y, z)
+            elif isinstance(region, EmptyRegion):
                 region.set_block(block, x, y, z)
         except Exception as e:
             if isinstance(region, Region):
-                # Convert to EmptyRegion as a fallback
                 empty_region = EmptyRegion(region_x, region_z)
                 
-                # Try to copy existing chunks
                 for cx in range(32):
                     for cz in range(32):
                         try:
@@ -513,11 +510,24 @@ class World:
         """
         return list(self.regions.keys())
     
+    def apply(self, dictionary) -> None:
+        """
+        Apply the given dictionary of changes to the world.
+        """
+        for k, v in dictionary.items():
+            print(f"Setting block {v} at {k}")
+            self.set_block(v, k[0], k[1], k[2])
+    
     def save(self) -> None:
         """
         Save all modified regions to disk.
         """
         for (region_x, region_z), region in self.regions.items():
+            region_path = os.path.join(self.region_dir, f"r.{region_x}.{region_z}.mca")
+            
             if isinstance(region, EmptyRegion):
-                region_path = os.path.join(self.region_dir, f"r.{region_x}.{region_z}.mca")
+                # Sauvegarder les EmptyRegion
+                region.save(region_path)
+            elif isinstance(region, Region):
+                # Sauvegarder les Region normales
                 region.save(region_path)

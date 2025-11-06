@@ -12,10 +12,10 @@ import pattern
 # cube.filled()
 
 
-word = anvil.World('C:/Users/ssim9/AppData/Roaming/.minecraft/saves/testop')
+word = anvil.World(r'C:\Users\zayd2\AppData\Roaming\.minecraft\saves\New World test sde fdp')
 #region00 = word.get_region(0,0)
 
-cube = pattern.cube.Cube(blocks = [anvil.Block('minecraft', 'diamond_block')], point = (160, 160, 160), size = (3, 3, 3))
+cube = pattern.cube.Cube(blocks = [anvil.Block('minecraft', 'glowstone')], point = (160, 64, 160), size = (3, 3, 3))
 dictblockcube = cube.filled()
 print(dictblockcube)
 word.apply(dictblockcube)
