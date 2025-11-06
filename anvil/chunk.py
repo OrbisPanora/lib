@@ -552,90 +552,143 @@ class Chunk:
         
         return section
     
-    def _set_block_in_section(self, section: nbt.TAG_Compound, block: Block, 
-                              x: int, y: int, z: int) -> None:
-        """Set block in a section (modern format 1.21.1+)."""
+    def _set_block_in_section(self, section: nbt.TAG_Compound, block: Block, x: int, y: int, z: int) -> None:
+        """
+        Set a block in a chunk section (modern format 1.21.1+), 
+        with automatic palette management and full state repack.
+        """
+        # --- 1. Get or create the palette ---
         palette = _palette_from_section(section)
-        
         block_index = None
         block_name = block.name()
+
         for i, palette_block in enumerate(palette):
             if palette_block['Name'].value == block_name:
                 pal_props = palette_block.get('Properties')
                 if self._props_match(pal_props, block.properties):
                     block_index = i
                     break
-        
+
         if block_index is None:
+            # Add block to palette
             block_index = len(palette)
             new_block = nbt.TAG_Compound()
             new_block.tags.append(nbt.TAG_String(name='Name', value=block_name))
-            
             if block.properties:
                 props = nbt.TAG_Compound()
                 props.name = 'Properties'
                 for k, v in block.properties.items():
                     props.tags.append(nbt.TAG_String(name=k, value=str(v)))
                 new_block.tags.append(props)
-            
             palette.tags.append(new_block)
-    
-        states = None
-        blockstates_tag = None
-        
-        if 'block_states' in section:
-            blockstates_tag = section['block_states']
-            if 'data' in blockstates_tag:
-                states = blockstates_tag['data'].value
-            elif hasattr(blockstates_tag, 'value') and blockstates_tag.value is not None:
-                states = blockstates_tag.value
-        elif 'BlockStates' in section:
-            blockstates_tag = section['BlockStates']
-            # legacy version (pre 1.13)
-            if hasattr(blockstates_tag, 'value'):
-                states = blockstates_tag.value
-        
-        if states is None:
-            bits = max((len(palette) - 1).bit_length(), 4)
-            total_bits = 4096 * bits
-            states_count = (total_bits + 63) // 64 
-            states = [0] * states_count
-            
-            if self.version >= VERSION_21w43a:
-                if 'block_states' not in section:
-                    block_states_container = nbt.TAG_Compound(name='block_states')
+
+        # --- 2. Recalculate bits and initialize states ---
+        bits = max((len(palette) - 1).bit_length(), 4)
+        total_bits = 4096 * bits
+        states_count = (total_bits + 63) // 64
+        states = [0] * states_count
+
+        # --- 3. Repack all existing blocks if palette changed ---
+        # Collect current blocks in the section
+        current_blocks = []
+        for ly in range(16):
+            for lz in range(16):
+                for lx in range(16):
+                    idx = ly * 256 + lz * 16 + lx
+                    cur_index = self._get_block_index_from_section(section, lx, ly, lz)
+                    current_blocks.append((lx, ly, lz, cur_index))
+
+        # Repack old blocks with the new palette
+        for lx, ly, lz, cur_index in current_blocks:
+            if cur_index is not None:
+                self._write_block_index(states, cur_index, lx, ly, lz, bits)
+
+        # --- 4. Write the new block ---
+        self._write_block_index(states, block_index, x, y, z, bits)
+
+        # --- 5. Save back to section ---
+        if self.version >= VERSION_21w43a:
+            if 'block_states' not in section:
+                block_states_container = nbt.TAG_Compound(name='block_states')
+                block_states_tag = nbt.TAG_Long_Array(name='data')
+                block_states_tag.value = states
+                block_states_container.tags.append(block_states_tag)
+                section.tags.append(block_states_container)
+            else:
+                block_states_container = section['block_states']
+                if 'data' in block_states_container:
+                    block_states_container['data'].value = states
+                else:
                     block_states_tag = nbt.TAG_Long_Array(name='data')
                     block_states_tag.value = states
                     block_states_container.tags.append(block_states_tag)
-                    section.tags.append(block_states_container)
-                else:
-                    block_states_container = section['block_states']
-                    if 'data' in block_states_container:
-                        block_states_tag = block_states_container['data']
-                        block_states_tag.value = states
-                    else:
-                        block_states_tag = nbt.TAG_Long_Array(name='data')
-                        block_states_tag.value = states
-                        block_states_container.tags.append(block_states_tag)
-            else:
-                new_blockstates = nbt.TAG_Long_Array(name='BlockStates')
-                new_blockstates.value = states
-                section.tags.append(new_blockstates)
         else:
-            bits = max((len(palette) - 1).bit_length(), 4)
-        
+            new_blockstates = nbt.TAG_Long_Array(name='BlockStates')
+            new_blockstates.value = states
+            section.tags.append(new_blockstates)
+
+    # --- Helper function to write a block index safely, handles spanning ---
+    def _write_block_index(self, states, block_index, x, y, z, bits):
         index = y * 256 + z * 16 + x
-        
-        # in 1.21.1 blocks don't span longs
-        state_idx = index // (64 // bits)
-        offset = (index % (64 // bits)) * bits
-        
-        if state_idx >= len(states):
-            states.extend([0] * (state_idx - len(states) + 1))
-        
+        bit_pos = index * bits
+        long_idx = bit_pos // 64
+        long_off = bit_pos % 64
         mask = (1 << bits) - 1
-        states[state_idx] &= ~(mask << offset)
-        states[state_idx] |= (block_index & mask) << offset
+
+        needed_longs = (bit_pos + bits + 63) // 64
+        if len(states) < needed_longs:
+            states.extend([0] * (needed_longs - len(states)))
+
+        # Write bits in first long
+        states[long_idx] &= ~(mask << long_off) & 0xFFFFFFFFFFFFFFFF
+        states[long_idx] |= ((block_index & mask) << long_off) & 0xFFFFFFFFFFFFFFFF
+
+        # Spill over to next long if necessary
+        spill = long_off + bits - 64
+        if spill > 0:
+            states[long_idx + 1] &= ~((1 << spill) - 1) & 0xFFFFFFFFFFFFFFFF
+            states[long_idx + 1] |= (block_index >> (bits - spill)) & ((1 << spill) - 1)
+
+
+    def _get_block_index_from_section(self, section: nbt.TAG_Compound, x: int, y: int, z: int) -> int | None:
+        """Return the palette index of the block at (x,y,z) in a section, or None if empty."""
+        if 'block_states' in section:
+            blockstates_tag = section['block_states']
+            data = None
+            if 'data' in blockstates_tag:
+                data = blockstates_tag['data'].value
+            elif hasattr(blockstates_tag, 'value'):
+                data = blockstates_tag.value
+        elif 'BlockStates' in section:
+            blockstates_tag = section['BlockStates']
+            data = getattr(blockstates_tag, 'value', None)
+        else:
+            return None
+
+        if data is None:
+            return None
+
+        palette = _palette_from_section(section)
+        bits = max((len(palette) - 1).bit_length(), 4)
+
+        index = y * 256 + z * 16 + x
+        bit_pos = index * bits
+        long_idx = bit_pos // 64
+        long_off = bit_pos % 64
+
+        if long_idx >= len(data):
+            return None
+
+        mask = (1 << bits) - 1
+        val = (data[long_idx] >> long_off) & mask
+
+        # handle spill
+        spill = long_off + bits - 64
+        if spill > 0 and long_idx + 1 < len(data):
+            val |= (data[long_idx + 1] & ((1 << spill) - 1)) << (bits - spill)
+
+        return val
+
     
     def _props_match(self, nbt_props, block_props: dict) -> bool:
         """Check if properties match."""

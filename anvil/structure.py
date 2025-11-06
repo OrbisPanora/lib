@@ -2,6 +2,7 @@ from typing import Tuple, Union, BinaryIO
 from nbt import nbt
 from io import BytesIO
 from anvil import Block
+from anvil import World
 from anvil import Chunk
 from .errors import GZipChunkData
 from .versions import VERSION_21w43a
@@ -39,11 +40,12 @@ class Structure:
             raise TypeError("Error from file to get datas")
         return cls(data)
     
+    def generate(self, world: World, x:int, y:int, z:int):
+        for block in self.blocks:
+            world.set_block(self.palette[block[1]], block[0][0]+x, block[0][1]+y, block[0][2]+z)
+        return world
+    
     def generate(self, chunk: Chunk, y:int):
         for block in self.blocks:
             chunk.set_block(self.palette[block[1]], block[0][0], block[0][1]+y, block[0][2])
-            #print(self.palette[block[1]])
-            #print(block[0][0])
-            #print(block[0][1]+ y)
-            #print(block[0][2])
         return chunk
