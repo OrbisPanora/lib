@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Union
 from .block import Block
 from .biome import Biome
 from .empty_section import EmptySection, validate_section_coords
@@ -153,6 +153,77 @@ class EmptyChunk:
         validate_chunk_coords_xyz(x, z)
         index = biome_index(x, z)
         self.biomes[index] = biome
+    
+    def replace_block_at(self, x: int, y: int, z: int, new_block: Union[str, Block]) -> bool:
+        """
+        Replace a single block at specific coordinates.
+        
+        Parameters
+        ----------
+        x : int
+            X coordinate (0-15)
+        y : int
+            Global Y coordinate
+        z : int
+            Z coordinate (0-15)
+        new_block : Union[str, Block]
+            The replacement block
+        
+        Returns
+        -------
+        bool
+            True if the block was replaced, False otherwise
+        """
+        try:
+            if isinstance(new_block, str):
+                new_block = Block.from_name(new_block)
+            self.set_block(new_block, x, y, z)
+            return True
+        except OutOfBoundsCoordinates:
+            return False
+    
+    def replace_blocks(self, old_block: Union[str, Block], new_block: Union[str, Block]) -> int:
+        """
+        Replace all occurrences of a specific block type with another block type in the chunk.
+        
+        Parameters
+        ----------
+        old_block : Union[str, Block]
+            The block to replace
+        new_block : Union[str, Block]
+            The replacement block
+        
+        Returns
+        -------
+        int
+            The number of blocks replaced
+        """
+        if isinstance(old_block, str):
+            old_block = Block.from_name(old_block)
+        if isinstance(new_block, str):
+            new_block = Block.from_name(new_block)
+        
+        old_block_name = old_block.name()
+        count = 0
+        
+        for section in self.sections:
+            if section is None:
+                continue
+            section_y = section.y
+            for local_y in range(16):
+                global_y = section_y * 16 + local_y
+                for x in range(16):
+                    for z in range(16):
+                        try:
+                            current_block = self.get_block(x, global_y, z)
+                            if current_block and current_block.name() == old_block_name:
+                                if not old_block.properties or current_block.properties == old_block.properties:
+                                    if self.replace_block_at(x, global_y, z, new_block):
+                                        count += 1
+                        except (IndexError, OutOfBoundsCoordinates):
+                            continue
+        
+        return count
 
     def save(self) -> nbt.NBTFile:
         """
