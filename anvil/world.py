@@ -153,12 +153,18 @@ class World:
         region_z = z >> 9  # z >> 9  <≡>  z // 512
 
         region = self.get_region(region_x, region_z)
-        
         try:
             if isinstance(region, Region):
+<<<<<<< HEAD
+                region_path = os.path.join(self.region_dir, f"r.{region_x}.{region_z}.mca")
+                region.set_block(block, x, y, z, region_path)
+            else:
+                region.set_block(block, x, y, z)  ## a fixééééé on peut pas appelle fun sans paramettre
+=======
                 region.set_block(block, x, y, z)
             elif isinstance(region, EmptyRegion):
                 region.set_block(block, x, y, z)
+>>>>>>> origin/dev
         except Exception as e:
             if isinstance(region, Region):
                 empty_region = EmptyRegion(region_x, region_z)
@@ -515,7 +521,6 @@ class World:
         Apply the given dictionary of changes to the world.
         """
         for k, v in dictionary.items():
-            print(f"Setting block {v} at {k}")
             self.set_block(v, k[0], k[1], k[2])
     
     def save(self) -> None:
