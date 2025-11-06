@@ -155,16 +155,10 @@ class World:
         region = self.get_region(region_x, region_z)
         try:
             if isinstance(region, Region):
-<<<<<<< HEAD
                 region_path = os.path.join(self.region_dir, f"r.{region_x}.{region_z}.mca")
                 region.set_block(block, x, y, z, region_path)
             else:
-                region.set_block(block, x, y, z)  ## a fixééééé on peut pas appelle fun sans paramettre
-=======
                 region.set_block(block, x, y, z)
-            elif isinstance(region, EmptyRegion):
-                region.set_block(block, x, y, z)
->>>>>>> origin/dev
         except Exception as e:
             if isinstance(region, Region):
                 empty_region = EmptyRegion(region_x, region_z)
