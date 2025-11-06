@@ -1002,3 +1002,45 @@ class Chunk:
             second_mask = (1 << bits_in_second) - 1
             data[state_idx + 1] &= ~second_mask
             data[state_idx + 1] |= ((palette_index >> bits_in_first) & second_mask)
+
+    def set_chunk_biome(self, biome: Biome) -> None:
+        """
+        Set the entire chunk to a single biome (optimized for uniform biomes).
+        
+        This method efficiently sets all sections in the chunk to the same biome
+        by creating a minimal palette with a single entry and no data array.
+
+        Parameters
+        ----------
+        biome : Biome
+            The biome to apply to the whole chunk
+            
+        Example
+        -------
+        >>> chunk.set_chunk_biome(Biome.from_name("minecraft:desert"))
+        """
+        biome_name = biome.name()
+        section_range = _section_height_range(self.version)
+        
+        for section_y in section_range:
+            section = self.get_section(section_y)
+            if section is None:
+                section = self._create_section(section_y)
+
+            # Create or get biomes structure
+            if 'biomes' not in section:
+                biomes_data = nbt.TAG_Compound(name='biomes')
+                palette = nbt.TAG_List(name='palette', type=nbt.TAG_String)
+                palette.tags.append(nbt.TAG_String(value=biome_name))
+                biomes_data.tags.append(palette)
+                section.tags.append(biomes_data)
+            else:
+                biomes_data = section['biomes']
+                palette = biomes_data['palette']
+                
+                # Reset palette to single biome
+                palette.tags.clear()
+                palette.tags.append(nbt.TAG_String(value=biome_name))
+                
+                # Remove data array if present (not needed for uniform biome)
+                biomes_data.tags[:] = [tag for tag in biomes_data.tags if tag.name != 'data']
