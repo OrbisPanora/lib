@@ -8,7 +8,7 @@ from .empty_chunk import EmptyChunk
 from .block import Block
 from .biome import Biome
 from .errors import OutOfBoundsCoordinates
-from pattern.point3d import Point3D
+
 
 class World:
     """
@@ -149,16 +149,21 @@ class World:
         z: int
             Global Z coordinate
         """
+        print("TEST00")
         region_x = x >> 9  # x >> 9  <≡>  x // 512
         region_z = z >> 9  # z >> 9  <≡>  z // 512
 
         region = self.get_region(region_x, region_z)
-        
+        print("TEST01")
         try:
+            print("TEST02")
             if isinstance(region, Region):
+                print("TEST10")
                 region_path = os.path.join(self.region_dir, f"r.{region_x}.{region_z}.mca")
+                print(x,y,z, " coordonnes block dans worldset")
                 region.set_block(block, x, y, z, region_path)
             else:
+                print("TEST20")
                 region.set_block(block, x, y, z)
         except Exception as e:
             if isinstance(region, Region):
@@ -186,24 +191,6 @@ class World:
         for k, v in dictionary.items():
             print(f"Setting block {v} at {k}")
             self.set_block(v, k[0], k[1], k[2])
-
-    def apply_pattern(self, origin, pattern) -> None:
-        """
-        Apply a pattern to the world at the specified origin.
-        
-        Parameters
-        ----------
-        origin: Tuple[int, int, int]
-            Origin point (x, y, z) where to apply the pattern
-        pattern: IPattern
-            Pattern to apply
-        """
-        if not isinstance(origin, Point3D):
-            origin = Point3D(origin[0], origin[1], origin[2])
-        
-        for point, block in pattern.generate():
-            world_point = origin + point
-            self.set_block(block, world_point.x, world_point.y, world_point.z)
 
     def save(self) -> None:
         """

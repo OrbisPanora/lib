@@ -125,13 +125,17 @@ class Region:
         local_z = z & 15  
         
         try:
+            print("chunk quon recup ", chunk_x, chunk_z)
             chunk = self.get_chunk(chunk_x % 32, chunk_z % 32)
-            
+            print("TEST100")
+            print(local_x,y,local_z, " coordonnes block dans regionset")
             chunk.set_block(block, local_x, y, local_z)
             
             self.save_chunk(chunk, file_path)
         except Exception as e:
-            raise Exception(f"Failed to set block at ({x}, {y}, {z}): {e}")
+            print(f"Failed to set block at ({x}, {y}, {z}): {e}")
+            #raise Exception(f"Failed to set block at ({x}, {y}, {z}): {e}") from e
+            raise e #Exception(f"Failed to set block at ({x}, {y}, {z})") from e
     
     def save_chunk(self, chunk: 'anvil.Chunk', file_path: str) -> None:
         """
