@@ -39,11 +39,6 @@ ENV/
 Thumbs.db
 *.log
 
-# Test files
-test_*.py
-*_test.py
-*.test.py
-
 # Temporary files
 *.tmp
 *.bak
