@@ -161,19 +161,16 @@ class Region:
                 level_tag.tags.append(nbt_data)
             nbt_file.tags = [level_tag]
         
+        # Serialize NBT data to bytes
+        buffer = BytesIO()
+        nbt_file.write_file(fileobj=buffer)
+        buffer.seek(0)
 
-        try:
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.nbt') as tmp:
-                nbt_file.write_file(tmp.name)
-                with gzip.open(tmp.name, 'rb') as gz_file:
-                    decompressed = gz_file.read()
-                compressed_data = zlib.compress(decompressed)
-        finally:
-            try:
-                os.unlink(tmp.name)
-            except:
-                pass
-        
+        # Skip the gzip header (10 bytes) and footer (8 bytes) to get raw deflate data
+        # or better: decompress gzip then recompress with zlib
+        nbt_bytes = gzip.decompress(buffer.read())
+        compressed_data = zlib.compress(nbt_bytes)
+
         chunk_x, chunk_z = chunk.x, chunk.z
         off = self.header_offset(chunk_x, chunk_z)
         
@@ -211,7 +208,7 @@ class Region:
         chunk_data_start = new_offset * 4096
         
         chunk_data = bytearray()
-        chunk_data.extend(len(compressed_data).to_bytes(4, byteorder='big')) 
+        chunk_data.extend((len(compressed_data) + 1).to_bytes(4, byteorder='big'))  # +1 for compression byte
         chunk_data.append(2)  # Compression type (2 = zlib)
         chunk_data.extend(compressed_data)
         
@@ -220,6 +217,12 @@ class Region:
             chunk_data.append(0)
      
         region_data = bytearray(self.data)
+
+        # Extend the region data if necessary
+        required_size = chunk_data_start + len(chunk_data)
+        if len(region_data) < required_size:
+            region_data.extend(bytearray(required_size - len(region_data)))
+
         region_data[chunk_data_start:chunk_data_start + len(chunk_data)] = chunk_data
         self.data = bytes(region_data)
         
@@ -241,3 +244,47 @@ class Region:
                 return cls(data=f.read())
         else:
             return cls(data=file.read())
+
+
+    def replace_block_at(self, x: int, y: int, z: int, new_block: Union[str, 'anvil.Block'], file_path: str) -> bool:
+        """
+        Replace a single block at specific global coordinates.
+
+        Parameters
+        ----------
+        x : int
+            Global X coordinate
+        y : int
+            Global Y coordinate
+        z : int
+            Global Z coordinate
+        new_block : Union[str, anvil.Block]
+            The replacement block
+        file_path : str
+            Path to the region file to save to
+
+        Returns
+        -------
+        bool
+            True if the block was replaced, False otherwise
+
+        Example
+        -------
+        >>> region.replace_block_at(100, 64, 200, "minecraft:diamond_block", "r.0.0.mca")
+        """
+        chunk_x = x >> 4
+        chunk_z = z >> 4
+
+        local_x = x & 15
+        local_z = z & 15
+
+        try:
+            chunk = self.get_chunk(chunk_x % 32, chunk_z % 32)
+
+            if chunk.replace_block_at(local_x, y, local_z, new_block):
+                self.save_chunk(chunk, file_path)
+                return True
+
+            return False
+        except Exception:
+            return False
