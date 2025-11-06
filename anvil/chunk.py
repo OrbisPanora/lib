@@ -740,6 +740,7 @@ class Chunk:
             If a chunk is outside this region or hasn't been generated yet
         """
         if isinstance(region, str):
+            print("TEST1010")
             region = Region.from_file(region)
         nbt_data = region.chunk_data(chunk_x, chunk_z)
         if nbt_data is None:
