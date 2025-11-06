@@ -81,7 +81,11 @@ class Region:
         compression = self.data[off + 4] # 2 most of the time
         if compression == 1:
             raise GZipChunkData('GZip is not supported')
+<<<<<<< HEAD
         compressed_data = self.data[off + 5 : off + 5 + length] # - 1
+=======
+        compressed_data = self.data[off + 5 : off + 5 + length]
+>>>>>>> origin/dev
         return nbt.NBTFile(buffer=BytesIO(zlib.decompress(compressed_data)))
 
     def get_chunk(self, chunk_x: int, chunk_z: int) -> 'anvil.Chunk':
@@ -213,7 +217,8 @@ class Region:
         chunk_data_start = new_offset * 4096
         
         chunk_data = bytearray()
-        chunk_data.extend(len(compressed_data).to_bytes(4, byteorder='big')) 
+        # Length must include the compression type byte
+        chunk_data.extend(data_length.to_bytes(4, byteorder='big')) 
         chunk_data.append(2)  # Compression type (2 = zlib)
         chunk_data.extend(compressed_data)
         
@@ -222,6 +227,12 @@ class Region:
             chunk_data.append(0)
      
         region_data = bytearray(self.data)
+        
+        # Ensure region_data is large enough
+        required_size = chunk_data_start + len(chunk_data)
+        if len(region_data) < required_size:
+            region_data.extend([0] * (required_size - len(region_data)))
+        
         region_data[chunk_data_start:chunk_data_start + len(chunk_data)] = chunk_data
         self.data = bytes(region_data)
         

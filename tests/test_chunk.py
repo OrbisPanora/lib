@@ -1,7 +1,7 @@
 from anvil import Region, Block
 
 # Load region file
-region = Region.from_file('r.0.0.mca')
+region = Region.from_file('')
 chunk = region.get_chunk(0, 0)
 
 # Replace single block

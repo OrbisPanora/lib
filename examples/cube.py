@@ -12,10 +12,17 @@ from pattern import Cube, Pyramid, Spiral
 # cube.filled()
 
 
+<<<<<<< HEAD
 word = anvil.World('C:/Users/ssim9/AppData/Roaming/.minecraft/saves/testop2')
 #region00 = word.get_region(0,0)
 
 cube = Cube(blocks = [anvil.Block('minecraft', 'diamond_block'), anvil.Block('minecraft', 'gold_block')], point = (200, 160, 200), size = (3,3,3))
+=======
+word = anvil.World(r'C:\Users\zayd2\AppData\Roaming\.minecraft\saves\New World test sde fdp')
+#region00 = word.get_region(0,0)
+
+cube = pattern.cube.Cube(blocks = [anvil.Block('minecraft', 'glowstone')], point = (160, 64, 160), size = (3, 3, 3))
+>>>>>>> origin/dev
 dictblockcube = cube.filled()
 word.apply(dictblockcube)
 
