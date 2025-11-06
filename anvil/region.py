@@ -81,7 +81,8 @@ class Region:
         compression = self.data[off + 4] # 2 most of the time
         if compression == 1:
             raise GZipChunkData('GZip is not supported')
-        compressed_data = self.data[off + 5 : off + 5 + length - 1]
+
+        compressed_data = self.data[off + 5 : off + 5 + length] # - 1
         return nbt.NBTFile(buffer=BytesIO(zlib.decompress(compressed_data)))
 
     def get_chunk(self, chunk_x: int, chunk_z: int) -> 'anvil.Chunk':
@@ -125,13 +126,15 @@ class Region:
         local_z = z & 15  
         
         try:
-            chunk = self.get_chunk(chunk_x % 32, chunk_z % 32)
-            
+            # anvil.Chunk.from_region(self, chunk_x, chunk_z)
+            chunk = self.get_chunk(chunk_x % 32, chunk_z % 32) ## faut lui passer file_path
             chunk.set_block(block, local_x, y, local_z)
             
             self.save_chunk(chunk, file_path)
         except Exception as e:
-            raise Exception(f"Failed to set block at ({x}, {y}, {z}): {e}")
+            print(f"Failed to set block at ({x}, {y}, {z}): {e}")
+            #raise Exception(f"Failed to set block at ({x}, {y}, {z}): {e}") from e
+            raise e #Exception(f"Failed to set block at ({x}, {y}, {z})") from e
     
     def save_chunk(self, chunk: 'anvil.Chunk', file_path: str) -> None:
         """
