@@ -1,6 +1,7 @@
 from anvil import Region, Biome
 
-region_file = r"C:\Users\seger\AppData\Roaming\.minecraft\saves\lib\region\r.0.0.mca"
+# Insert the Path of your .mca here
+region_file = r"" 
 
 # Load region file
 region = Region.from_file(region_file)
@@ -36,4 +37,3 @@ print(f"Match: {'Passed' if actual_biome.name() == jungle_biome.name() else 'Fai
 # Save changes
 region.save_chunk(chunk, region_file)
 print("\nRegion saved!")
-# ...existing code...
