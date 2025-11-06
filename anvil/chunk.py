@@ -181,7 +181,7 @@ class Chunk:
                 return Biome.from_name(biomes_palette[0].value)
 
 
-            index = ((y % 16 // 4) * 4 * 4) + (z // 4) * 4 + (x // 4)
+            index = ((y % 16) // 4) * 16 + (z // 4) * 4 + (x // 4)
             bits = (len(biomes_palette) - 1).bit_length()
             state = index * bits // 64
             data = biomes[state]

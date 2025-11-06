@@ -62,13 +62,12 @@ test_positions2 = [
     (15, 64, 15),  # Jungle side
 ]
 
-# TODO : Débug ça demain ;p
 print("\nVerifying biome at various positions:")
 for x, y, z in test_positions2:
     actual = chunk2.get_biome(x, y, z)
     expected = desert_biome if x < 8 else jungle_biome
-    status = "✓" if actual.name() == expected.name() else "✗"
-    print(f"  {status} Position ({x}, {y}, {z}): {actual}")
+    status = "[X]" if actual.name() == expected.name() else "[ ]"
+    print(f"  {status} Position ({x}, {y}, {z}) : {actual}")
 
 # Save changes
 region.save_chunk(chunk2, region_file)
