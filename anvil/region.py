@@ -81,7 +81,7 @@ class Region:
         compression = self.data[off + 4] # 2 most of the time
         if compression == 1:
             raise GZipChunkData('GZip is not supported')
-        compressed_data = self.data[off + 5 : off + 5 + length - 1]
+        compressed_data = self.data[off + 5 : off + 5 + length]
         return nbt.NBTFile(buffer=BytesIO(zlib.decompress(compressed_data)))
 
     def get_chunk(self, chunk_x: int, chunk_z: int) -> 'anvil.Chunk':
