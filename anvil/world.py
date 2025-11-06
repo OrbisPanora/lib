@@ -164,7 +164,7 @@ class World:
                 region.set_block(block, x, y, z, region_path)
             else:
                 print("TEST20")
-                region.set_block(block, x, y, z)
+                region.set_block(block, x, y, z)  ## a fixééééé on peut pas appelle fun sans paramettre
         except Exception as e:
             if isinstance(region, Region):
                 # Convert to EmptyRegion as a fallback

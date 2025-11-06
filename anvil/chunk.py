@@ -687,6 +687,7 @@ class Chunk:
             If a chunk is outside this region or hasn't been generated yet
         """
         print("TEST1000")
+        #print(region)
         if isinstance(region, str):
             print("TEST1010")
             region = Region.from_file(region)
@@ -695,7 +696,7 @@ class Chunk:
         if nbt_data is None:
             print("TEST1020")
             raise ChunkNotFound(f"Could not find chunk ({chunk_x}, {chunk_z})")
-        return cls(nbt_data)
+        return cls(nbt_data)  ### tester ici
     
     def replace_block_at(self, x: int, y: int, z: int, new_block: Union[str, Block]) -> bool:
         """

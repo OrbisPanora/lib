@@ -99,7 +99,7 @@ class Region:
         
         :rtype: :class:`anvil.Chunk`
         """
-        return anvil.Chunk.from_region(self, chunk_x, chunk_z)
+        return anvil.Chunk.from_region(self, chunk_x, chunk_z) ## au lieu de self il faut path ## faut voir sil est utiliser ailleurs
 
     def set_block(self, block: 'anvil.Block', x: int, y: int, z: int, file_path: str) -> None:
         """
@@ -126,7 +126,8 @@ class Region:
         
         try:
             print("chunk quon recup ", chunk_x, chunk_z)
-            chunk = self.get_chunk(chunk_x % 32, chunk_z % 32)
+            # anvil.Chunk.from_region(self, chunk_x, chunk_z)
+            chunk = self.get_chunk(chunk_x % 32, chunk_z % 32) ## faut lui passer file_path
             print("TEST100")
             print(local_x,y,local_z, " coordonnes block dans regionset")
             chunk.set_block(block, local_x, y, local_z)
