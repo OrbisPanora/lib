@@ -11,10 +11,11 @@ A Python library designed to read, modify, and write **Minecraft world save file
 ## 💡 Usage
 
 ### Reading Data
+
 ```python
 import anvil
 
-region = anvil.Region.from_file('r.0.0.mca')
+region = anvil.Region.from_file('tests/r.0.0.mca')
 
 # Get a chunk at region coordinates 0, 0
 chunk = anvil.Chunk.from_region(region, 0, 0)
@@ -23,9 +24,9 @@ chunk = anvil.Chunk.from_region(region, 0, 0)
 # If `section` is not provided, it will be derived from the y-coordinate.
 block = chunk.get_block(0, 0, 0)
 
-print(block) # <Block(minecraft:air)>
-print(block.id) # air
-print(block.properties) # {}
+print(block)  # <Block(minecraft:air)>
+print(block.id)  # air
+print(block.properties)  # {}
 ```
 
 ### Creating Regions
