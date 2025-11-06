@@ -149,9 +149,9 @@ class World:
         z: int
             Global Z coordinate
         """
-        region_x = x >> 9  
-        region_z = z >> 9  
-        
+        region_x = x >> 9  # x >> 9  <≡>  x // 512
+        region_z = z >> 9  # z >> 9  <≡>  z // 512
+
         region = self.get_region(region_x, region_z)
         
         try:
@@ -178,6 +178,15 @@ class World:
                 self.regions[(region_x, region_z)] = empty_region
                 empty_region.set_block(block, x, y, z)
     
+
+    def apply(self, dictionary) -> None:
+        """
+        Apply the given dictionary of changes to the world.
+        """
+        for k, v in dictionary.items():
+            print(f"Setting block {v} at {k}")
+            self.set_block(v, k[0], k[1], k[2])
+
     def save(self) -> None:
         """
         Save all modified regions to disk.

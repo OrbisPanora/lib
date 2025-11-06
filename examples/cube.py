@@ -15,14 +15,16 @@ import pattern
 word = anvil.World('C:/Users/ssim9/AppData/Roaming/.minecraft/saves/testop')
 #region00 = word.get_region(0,0)
 
-cube = pattern.cube.Cube(blocks = [anvil.Block('minecraft', 'diamond_block')], point = (0, 60, 0), size = (18, 5, 18))
+cube = pattern.cube.Cube(blocks = [anvil.Block('minecraft', 'diamond_block')], point = (160, 160, 160), size = (3, 3, 3))
 dictblockcube = cube.filled()
+print(dictblockcube)
+word.apply(dictblockcube)
 
-pyramid = pattern.pyramid.Pyramid(blocks = [anvil.Block('minecraft', 'sandstone')], point = (30, 60, 0), size = (18, 9, 18))
-dictblockpyramid = pyramid.filled()
+# pyramid = pattern.pyramid.Pyramid(blocks = [anvil.Block('minecraft', 'sandstone')], point = (30, 60, 0), size = (18, 9, 18))
+# dictblockpyramid = pyramid.filled()
 
-spiral = pattern.spiral.Spiral(blocks = [anvil.Block('minecraft', 'oak_log')], point = (60, 60, 0), size = (18, 30, 18))
-dictblockspiral = spiral.filled()
+# spiral = pattern.spiral.Spiral(blocks = [anvil.Block('minecraft', 'oak_log')], point = (60, 60, 0), size = (18, 30, 18))
+# dictblockspiral = spiral.filled()
 
 ####
 
