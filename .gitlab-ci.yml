@@ -45,6 +45,8 @@ release:
     - build_wheel
   script:
     - WHEEL_FILE=$(ls dist/*.whl | head -n1 | xargs basename)
-    - release-cli create --tag-name "test-release-$CI_PIPELINE_ID" --name "Test Release $CI_PIPELINE_ID" --description "Test Release $CI_PIPELINE_ID from ci/pipeline branch." --assets-link "{\"name\":\"Download .whl\",\"url\":\"${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_REF_NAME}/raw/dist/${WHEEL_FILE}?job=build_wheel\"}"
+    - VERSION=$(echo "$WHEEL_FILE" | sed -E 's/^[^-]+-([^-]+)-.*$/\1/')
+    - LABEL="orbispanora-parser-${VERSION}.whl"
+    - release-cli create --tag-name "test-release-$CI_PIPELINE_ID" --name "Test Release $CI_PIPELINE_ID" --description "Test Release $CI_PIPELINE_ID from ci/pipeline branch." --assets-link "{\"name\":\"${LABEL}\",\"url\":\"${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_REF_NAME}/raw/dist/${WHEEL_FILE}?job=build_wheel\"}"
   only:
     - ci/pipeline
