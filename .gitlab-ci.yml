@@ -1,3 +1,8 @@
+workflow:
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+    - when: never
+
 stages:
   - test
   - build
@@ -15,7 +20,6 @@ test:
     - pytest
   only:
     - master
-    - ci/pipeline
   when : manual # Remove this when all of the tests are refactored
 
 build_wheel:
@@ -36,7 +40,6 @@ build_wheel:
     expire_in: 1 week
   only:
     - master
-    - ci/pipeline
 
 release:
   stage: release
@@ -47,7 +50,6 @@ release:
     - WHEEL_FILE=$(ls dist/*.whl | head -n1 | xargs basename)
     - VERSION=$(echo "$WHEEL_FILE" | sed -E 's/^[^-]+-([^-]+)-.*$/\1/')
     - LABEL="orbispanora-parser-${VERSION}.whl"
-    - release-cli create --tag-name "test-release-$CI_PIPELINE_ID" --name "Test Release $CI_PIPELINE_ID" --description "Test Release $CI_PIPELINE_ID from ci/pipeline branch." --assets-link "{\"name\":\"${LABEL}\",\"url\":\"${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_REF_NAME}/raw/dist/${WHEEL_FILE}?job=build_wheel\"}"
+    - release-cli create --tag-name "test-release-$CI_PIPELINE_ID" --name "Test Release $CI_PIPELINE_ID" --description "Test Release $CI_PIPELINE_ID from ${CI_COMMIT_REF_NAME} branch." --assets-link "{\"name\":\"${LABEL}\",\"url\":\"${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_REF_NAME}/raw/dist/${WHEEL_FILE}?job=build_wheel\"}"
   only:
-    - ci/pipeline
-  when: manual
+    - master
