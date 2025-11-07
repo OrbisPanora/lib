@@ -1,0 +1,57 @@
+stages:
+  - test
+  - build
+  - release
+
+test:
+  stage: test
+  image: python:3.9
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install pytest
+    - |
+      if [ -f tests/requirements.txt ]; then pip install -r tests/requirements.txt; fi
+  script:
+    - pytest
+  only:
+    - master
+    - ci/pipeline
+
+build_wheel:
+  stage: build
+  image: python:3.9
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install build
+  script:
+    - |
+      if [ "$CI_COMMIT_REF_NAME" = "ci/pipeline" ]; then \
+        sed -i "s/version=.*/version='0.0.0-test.$CI_PIPELINE_ID',/" setup.py; \
+      fi
+    - python -m build --wheel
+  artifacts:
+    paths:
+      - dist/*.whl
+    expire_in: 1 week
+  only:
+    - master
+    - ci/pipeline
+
+release:
+  stage: release
+  image: python:3.9
+  dependencies:
+    - build_wheel
+  script:
+    - echo "Manual test release."
+  release:
+    tag_name: "test-release-$CI_PIPELINE_ID"
+    description: "Test Release $CI_PIPELINE_ID from ci/pipeline branch."
+    assets:
+      links:
+        - name: "Download .whl"
+          url: "${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/file/dist/$(ls dist/*.whl | head -n1)"
+  only:
+    - ci/pipeline
+  when: manual
+
