@@ -13,7 +13,7 @@ A Python library designed to read, modify, and write **Minecraft world save file
 ## install OP lib
 
 ```bash
-pip install git+ssh://git@codefirst.iut.uca.fr/IUT_INF63/projets-etudiants/OrbisPanora/lib.git
+pip install git+ssh://git@codefirst.iut.uca.fr/IUT_INF63/projets-etudiants/OrbisPanora/lib.git@origin/dev
 ```
 
 ## test simple region, chunk, block retrieval
