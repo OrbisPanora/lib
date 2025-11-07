@@ -36,7 +36,7 @@ try:
     else:
         spawn_x, spawn_y, spawn_z = 0, 100, 0
     
-    print(f"Placing a diamond block at coordinates ({spawn_x}, {spawn_y}, {spawn_z})...")
+    print(f"Placing structure from {structure_file} at coordinates ({spawn_x}, {spawn_y}, {spawn_z})...")
     start_time = time.time()
     world = structure.generate_in_world(world, spawn_x, spawn_y, spawn_z)
 
@@ -45,7 +45,7 @@ try:
     
     end_time = time.time()
     print(f"Changes applied successfully in {end_time - start_time:.2f} seconds!")
-    print(f"A diamond block has been placed at coordinates ({spawn_x}, {spawn_y}, {spawn_z})")
+    print(f"The structure has been placed at coordinates ({spawn_x}, {spawn_y}, {spawn_z})")
     print("You can now open this world in Minecraft to see the changes.")
     
     region_x = spawn_x >> 9  

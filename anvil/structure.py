@@ -22,8 +22,23 @@ class Structure:
         self.nbtData = data
         self.size: tuple[int, int, int] = self.nbtData.get("size", [])
         self.entities: list[tuple[tuple[int, int, int], int]] = [((i["pos"][0].value, i["pos"][1].value, i["pos"][2].value),i["state"].value) for i in self.nbtData.get("entities", [])]
-        self.blocks: list[tuple[tuple[int, int, int], int]] = [((i["pos"][0].value, i["pos"][1].value, i["pos"][2].value),i["state"].value) for i in self.nbtData.get("blocks", [])]
-        self.palette: list[str] = [Block.from_palette(i) for i in self.nbtData.get("palette", [])]
+        raw_palette = self.nbtData.get("palette", [])
+        print(f"Structure palette info: {len(raw_palette)} entries")
+        for i, entry in enumerate(raw_palette):
+            print(f"Palette entry {i}: {entry}")
+        self.palette: list[str] = [Block.from_palette(i) for i in raw_palette]
+        palette_len = len(self.palette)
+        print(f"Processed palette length: {palette_len}")
+        
+        blocks = []
+        for block in self.nbtData.get("blocks", []):
+            pos = (block["pos"][0].value, block["pos"][1].value, block["pos"][2].value)
+            state = block["state"].value
+            if state >= palette_len:
+                print(f"Warning: Structure contains invalid palette index {state} at position {pos}, skipping block")
+                continue
+            blocks.append((pos, state))
+        self.blocks = blocks
 
     @classmethod
     def from_file(cls, fileName: str):
@@ -42,10 +57,24 @@ class Structure:
     
     def generate_in_world(self, world: World, x:int, y:int, z:int):
         for block in self.blocks:
-            world.set_block(self.palette[block[1]], block[0][0]+x, block[0][1]+y, block[0][2]+z)
+            palette_index = block[1]
+            if palette_index >= len(self.palette):
+                print(f"Warning: Invalid palette index {palette_index}, replacing with air at ({block[0][0]+x}, {block[0][1]+y}, {block[0][2]+z})")
+                # Replace invalid blocks with air instead of skipping
+                air_block = Block.from_name("minecraft:air")
+                world.set_block(air_block, block[0][0]+x, block[0][1]+y, block[0][2]+z)
+                continue
+            world.set_block(self.palette[palette_index], block[0][0]+x, block[0][1]+y, block[0][2]+z)
         return world
     
     def generate_in_chunk(self, chunk: Chunk, y:int):
         for block in self.blocks:
-            chunk.set_block(self.palette[block[1]], block[0][0], block[0][1]+y, block[0][2])
+            palette_index = block[1]
+            if palette_index >= len(self.palette):
+                print(f"Warning: Invalid palette index {palette_index}, replacing with air at ({block[0][0]}, {block[0][1]+y}, {block[0][2]})")
+                # Replace invalid blocks with air instead of skipping
+                air_block = Block.from_name("minecraft:air")
+                chunk.set_block(air_block, block[0][0], block[0][1]+y, block[0][2])
+                continue
+            chunk.set_block(self.palette[palette_index], block[0][0], block[0][1]+y, block[0][2])
         return chunk

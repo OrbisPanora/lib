@@ -553,102 +553,155 @@ class Chunk:
         return section
     
     def _set_block_in_section(self, section: nbt.TAG_Compound, block: Block, x: int, y: int, z: int) -> None:
-        """
-        Set a block in a chunk section (modern format 1.21.1+), 
-        with automatic palette management and full state repack.
-        """
-        # --- 1. Get or create the palette ---
-        palette = _palette_from_section(section)
-        block_index = None
-        block_name = block.name()
+        """Set a block in a section with proper palette management."""
+        # Get palette
+        if self.version >= VERSION_21w43a:
+            if 'block_states' not in section:
+                section.tags.append(nbt.TAG_Compound(name='block_states'))
+            block_states = section['block_states']
+            
+            if 'palette' not in block_states:
+                block_states.tags.append(nbt.TAG_List(name='palette', type=nbt.TAG_Compound))
+            palette = block_states['palette']
+        else:
+            if 'Palette' not in section:
+                section.tags.append(nbt.TAG_List(name='Palette', type=nbt.TAG_Compound))
+            palette = section['Palette']
 
-        for i, palette_block in enumerate(palette):
-            if palette_block['Name'].value == block_name:
-                pal_props = palette_block.get('Properties')
-                if self._props_match(pal_props, block.properties):
+        # Find block in palette
+        block_name = block.name()
+        block_index = None
+        for i, entry in enumerate(palette):
+            if entry['Name'].value == block_name:
+                if self._props_match(entry.get('Properties'), block.properties):
                     block_index = i
                     break
 
+        # Add to palette if not found
         if block_index is None:
-            # Add block to palette
             block_index = len(palette)
-            new_block = nbt.TAG_Compound()
-            new_block.tags.append(nbt.TAG_String(name='Name', value=block_name))
+            new_entry = nbt.TAG_Compound()
+            new_entry.tags.append(nbt.TAG_String(name='Name', value=block_name))
             if block.properties:
-                props = nbt.TAG_Compound()
-                props.name = 'Properties'
+                props = nbt.TAG_Compound(name='Properties')
                 for k, v in block.properties.items():
                     props.tags.append(nbt.TAG_String(name=k, value=str(v)))
-                new_block.tags.append(props)
-            palette.tags.append(new_block)
+                new_entry.tags.append(props)
+            palette.tags.append(new_entry)
 
-        # --- 2. Recalculate bits and initialize states ---
-        bits = max((len(palette) - 1).bit_length(), 4)
-        total_bits = 4096 * bits
-        states_count = (total_bits + 63) // 64
-        states = [0] * states_count
+        # Calculate bits needed for palette indices
+        # For Minecraft 1.21.1, always use 5 bits minimum for compatibility
+        bits = max((len(palette) - 1).bit_length(), 5 if self.version >= VERSION_21w43a else 4)
 
-        # --- 3. Repack all existing blocks if palette changed ---
-        # Collect current blocks in the section
-        current_blocks = []
-        for ly in range(16):
-            for lz in range(16):
-                for lx in range(16):
-                    idx = ly * 256 + lz * 16 + lx
-                    cur_index = self._get_block_index_from_section(section, lx, ly, lz)
-                    current_blocks.append((lx, ly, lz, cur_index))
-
-        # Repack old blocks with the new palette
-        for lx, ly, lz, cur_index in current_blocks:
-            if cur_index is not None:
-                self._write_block_index(states, cur_index, lx, ly, lz, bits)
-
-        # --- 4. Write the new block ---
-        self._write_block_index(states, block_index, x, y, z, bits)
-
-        # --- 5. Save back to section ---
+        # Create/get data array
         if self.version >= VERSION_21w43a:
-            if 'block_states' not in section:
-                block_states_container = nbt.TAG_Compound(name='block_states')
-                block_states_tag = nbt.TAG_Long_Array(name='data')
-                block_states_tag.value = states
-                block_states_container.tags.append(block_states_tag)
-                section.tags.append(block_states_container)
-            else:
-                block_states_container = section['block_states']
-                if 'data' in block_states_container:
-                    block_states_container['data'].value = states
-                else:
-                    block_states_tag = nbt.TAG_Long_Array(name='data')
-                    block_states_tag.value = states
-                    block_states_container.tags.append(block_states_tag)
+            if 'data' not in block_states:
+                data = nbt.TAG_Long_Array(name='data')
+                data.value = [0] * 342  # Always use 342 longs for 1.21.1
+                block_states.tags.append(data)
+            states = block_states['data'].value
         else:
-            new_blockstates = nbt.TAG_Long_Array(name='BlockStates')
-            new_blockstates.value = states
-            section.tags.append(new_blockstates)
+            if 'BlockStates' not in section:
+                data = nbt.TAG_Long_Array(name='BlockStates')
+                data.value = [0] * 342
+                section.tags.append(data)
+            states = section['BlockStates'].value
+
+        # Write the block index
+        self._write_block_index(states, block_index, x, y, z, bits, len(palette))
 
     # --- Helper function to write a block index safely, handles spanning ---
-    def _write_block_index(self, states, block_index, x, y, z, bits):
-        index = y * 256 + z * 16 + x
-        bit_pos = index * bits
-        long_idx = bit_pos // 64
-        long_off = bit_pos % 64
-        mask = (1 << bits) - 1
+    def _write_block_index(self, states, block_index, x, y, z, bits, lenPalette):
+        """Write a block index to the states array with proper bounds checking."""
+        # Debug check for invalid indices
+        if block_index >= lenPalette:
+            print(f"WARNING: Block index {block_index} at ({x},{y},{z}) exceeds palette size {lenPalette}, forcing to air block (0)")
+            block_index = 0  # Use air block instead of crashing
+        if block_index < 0:
+            print(f"WARNING: Block index {block_index} at ({x},{y},{z}) is negative, forcing to air block (0)")
+            block_index = 0  # Use air block instead of crashing
+        
+        # Calculate position in the section using YZX order
+        index = y * 16 * 16 + z * 16 + x
+        
+        # In versions after 20w17a, blocks cannot occupy more than one element in BlockStates
+        if self.version >= VERSION_20w17a:
+            long_index = index // (64 // bits)
+            offset = (index % (64 // bits)) * bits
+        else:
+            bit_start = index * bits
+            long_index = bit_start // 64
+            offset = bit_start % 64
 
-        needed_longs = (bit_pos + bits + 63) // 64
-        if len(states) < needed_longs:
-            states.extend([0] * (needed_longs - len(states)))
+        print(f"DEBUG: Writing block_index={block_index} at x={x},y={y},z={z}")
+        print(f"DEBUG: bits={bits}, offset={offset}, long_index={long_index}")
 
-        # Write bits in first long
-        states[long_idx] &= ~(mask << long_off) & 0xFFFFFFFFFFFFFFFF
-        states[long_idx] |= ((block_index & mask) << long_off) & 0xFFFFFFFFFFFFFFFF
+        # Ensure states array is exactly 342 longs (required for MC 1.21.1)
+        if len(states) != 342:
+            new_states = [0] * 342
+            for i in range(min(len(states), 342)):
+                new_states[i] = states[i]
+            states[:] = new_states
 
-        # Spill over to next long if necessary
-        spill = long_off + bits - 64
-        if spill > 0:
-            states[long_idx + 1] &= ~((1 << spill) - 1) & 0xFFFFFFFFFFFFFFFF
-            states[long_idx + 1] |= (block_index >> (bits - spill)) & ((1 << spill) - 1)
+        # Create a mask for the full value
+        full_mask = (1 << bits) - 1
+        if (block_index & full_mask) != block_index:
+            raise ValueError(f"Block index {block_index} requires more than {bits} bits")
 
+        if offset + bits <= 64:
+            # Case 1: Block fits in single long
+            current = states[long_index]
+            print(f"DEBUG: Single long case - Before: {bin(current)}")
+            
+            # Clear the bits at the offset position
+            current &= ~(full_mask << offset)
+            # Insert the new value
+            current |= (block_index << offset)
+            # Store back
+            states[long_index] = current & 0xFFFFFFFFFFFFFFFF
+            
+            print(f"DEBUG: Single long case - After: {bin(states[long_index])}")
+            
+            # Verify the write
+            verify_mask = full_mask << offset
+            stored_value = (states[long_index] & verify_mask) >> offset
+            if stored_value != block_index:
+                raise ValueError(f"Verification failed! Wrote {block_index} but read back {stored_value}")
+        else:
+            # Case 2: Block spans two longs
+            current = states[long_index]
+            next_long = states[long_index + 1]
+            
+            print(f"DEBUG: Spanning case - Before: {bin(current)}, {bin(next_long)}")
+            
+            # Calculate bits in each long
+            bits_in_first = 64 - offset
+            bits_in_second = bits - bits_in_first
+            
+            # Handle first long
+            mask_first = (1 << bits_in_first) - 1
+            current &= ~(mask_first << offset)  # Clear bits in first long
+            first_bits = block_index & mask_first
+            current |= (first_bits << offset)  # Set lower bits
+            states[long_index] = current & 0xFFFFFFFFFFFFFFFF
+            
+            # Handle second long
+            mask_second = (1 << bits_in_second) - 1
+            next_long &= ~mask_second  # Clear bits in second long
+            second_bits = (block_index >> bits_in_first) & mask_second
+            next_long |= (second_bits & mask_second)  # Set upper bits with proper mask
+            states[long_index + 1] = next_long & 0xFFFFFFFFFFFFFFFF
+            
+            print(f"DEBUG: Spanning case - After: {bin(states[long_index])}, {bin(states[long_index + 1])}")
+            print(f"DEBUG: bits_in_first={bits_in_first}, bits_in_second={bits_in_second}")
+            print(f"DEBUG: first_bits={bin(first_bits)}, second_bits={bin(second_bits)}")
+            
+            # Verify the write
+            stored_first = (states[long_index] >> offset) & mask_first
+            stored_second = states[long_index + 1] & mask_second
+            stored_value = stored_first | (stored_second << bits_in_first)
+            if stored_value != block_index:
+                raise ValueError(f"Verification failed! Wrote {block_index} but read back {stored_value}")
 
     def _get_block_index_from_section(self, section: nbt.TAG_Compound, x: int, y: int, z: int) -> int | None:
         """Return the palette index of the block at (x,y,z) in a section, or None if empty."""
