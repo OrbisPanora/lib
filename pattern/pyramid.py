@@ -1,4 +1,3 @@
-import examples._path
 import anvil
 from random import choice
 import pattern
