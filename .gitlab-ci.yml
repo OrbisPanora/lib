@@ -45,14 +45,13 @@ release:
     - build_wheel
   script:
     - WHEEL_FILE=$(ls dist/*.whl | head -n1 | xargs basename)
-    - echo "Manual test release."
+    - echo "Release will link to: ${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/file/dist/${WHEEL_FILE}"
   release:
     tag_name: "test-release-$CI_PIPELINE_ID"
     description: "Test Release $CI_PIPELINE_ID from ci/pipeline branch."
     assets:
       links:
         - name: "Download .whl"
-          url: "${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/file/dist/${WHEEL_FILE}"
+          url: "${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/raw/dist/${WHEEL_FILE}"
   only:
     - ci/pipeline
-  when: manual
