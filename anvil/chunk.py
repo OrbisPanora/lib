@@ -45,6 +45,18 @@ def _states_from_section(section: nbt.TAG_Compound) -> list:
         return [state if state >= 0 else states + 2 ** 64 
             for state in states.value]
 
+def _calculate_blockstates_size(bits: int) -> int:
+    """Calculate the number of longs needed for the given bits per block.
+    Minecraft requires each Y-level's data to be aligned, with some padding."""
+    # Calculate longs needed for one Y-level (16x16 blocks)
+    bits_per_layer = 16 * 16 * bits
+    base_longs_per_layer = (bits_per_layer + 63) // 64  # ceil division
+    # Add padding (1/16 extra for alignment)
+    padded_longs_per_layer = (base_longs_per_layer * 17 + 15) // 16  # ceil(base * 1.0625)
+    # Multiply by 16 Y-levels
+    total_longs = padded_longs_per_layer * 16
+    return total_longs
+
 
 def _section_height_range(version: Optional[int]) -> range:
     if version > VERSION_17w47a:
@@ -531,10 +543,11 @@ class Chunk:
         palette.tags.append(air)
         section.tags.append(palette)
         
-        #Modif par nous
-        bits = 4
-        total_bits = 4096 * bits
-        states_count = (total_bits + 63) // 64 
+        # Calculate number of longs needed for block storage
+        bits = 4  # Start with minimum 4 bits
+        blocks_per_long = 64 // bits
+        total_blocks = 16 * 16 * 16  # 4096 blocks per section
+        states_count = (total_blocks + blocks_per_long - 1) // blocks_per_long
         block_states = nbt.TAG_Long_Array(name='BlockStates')
         block_states.value = [0] * states_count
         section.tags.append(block_states)
@@ -590,22 +603,149 @@ class Chunk:
             palette.tags.append(new_entry)
 
         # Calculate bits needed for palette indices
-        # For Minecraft 1.21.1, always use 5 bits minimum for compatibility
-        bits = max((len(palette) - 1).bit_length(), 5 if self.version >= VERSION_21w43a else 4)
+        old_bits = max((len(palette) - 2).bit_length(), 4) if len(palette) > 1 else 4
+        new_bits = max((len(palette) - 1).bit_length(), 4)
+        
+        print(f"DEBUG: Palette size: {len(palette)}, old_bits: {old_bits}, new_bits: {new_bits}")
 
         # Create/get data array
         if self.version >= VERSION_21w43a:
             if 'data' not in block_states:
                 data = nbt.TAG_Long_Array(name='data')
-                data.value = [0] * 342  # Always use 342 longs for 1.21.1
+                array_size = self._calculate_states_count(new_bits)
+                print(f"DEBUG: Creating new data array with size {array_size} for {new_bits} bits")
+                data.value = [0] * array_size
                 block_states.tags.append(data)
             states = block_states['data'].value
         else:
             if 'BlockStates' not in section:
                 data = nbt.TAG_Long_Array(name='BlockStates')
-                data.value = [0] * 342
+                array_size = self._calculate_states_count(new_bits)
+                print(f"DEBUG: Creating new BlockStates array with size {array_size} for {new_bits} bits")
+                data.value = [0] * array_size
                 section.tags.append(data)
             states = section['BlockStates'].value
+            
+        print(f"DEBUG: Current states array size: {len(states)}")
+
+        # If the array size needs to change, resize and rewrite all blocks
+        required_size = self._calculate_states_count(new_bits)
+        if len(states) != required_size:
+            print(f"DEBUG: Resizing states array from {len(states)} to {required_size} (bits: {old_bits}->{new_bits})")
+            
+            # Store current block indices
+            block_indices = []
+            for by in range(16):
+                for bz in range(16):
+                    for bx in range(16):
+                        index = self._get_block_index_from_section(section, bx, by, bz)
+                        if index is not None and index >= len(palette) - 1:
+                            print(f"WARNING: Found invalid index {index} at ({bx},{by},{bz}), using air block")
+                            index = 0
+                        block_indices.append(0 if index is None else index)
+            
+            # Create new array with correct size
+            new_states = [0] * required_size
+            print(f"DEBUG: Created new states array with size {len(new_states)}")
+            
+            # Track blocks before and after for verification
+            blocks_before = {}
+            blocks_after = {}
+            
+            # Store current block arrangement
+            for y in range(16):
+                for z in range(16):
+                    for x in range(16):
+                        index = self._get_block_index_from_section(section, x, y, z)
+                        if index is not None and index < len(palette):
+                            blocks_before[(x,y,z)] = index
+            
+            # Write back all indices with new bit width
+            for i, block_index in enumerate(block_indices):
+                if block_index >= len(palette):
+                    print(f"WARNING: Invalid block_index {block_index} at position {i}, using air block")
+                    block_index = 0
+                
+                if self.version >= VERSION_20w17a:
+                    long_index = i // (64 // new_bits)
+                    offset = (i % (64 // new_bits)) * new_bits
+                else:
+                    bit_start = i * new_bits
+                    long_index = bit_start // 64
+                    offset = bit_start % 64
+                
+                # Calculate x,y,z from index for better debugging
+                y = (i // (16 * 16)) % 16
+                z = (i // 16) % 16
+                x = i % 16
+                
+                print(f"DEBUG: Writing index {block_index} at ({x},{y},{z}) (long_index={long_index}, offset={offset})")
+                
+                if long_index >= len(new_states):
+                    print(f"WARNING: long_index {long_index} exceeds array size {len(new_states)}")
+                    continue
+                    
+                mask = (1 << new_bits) - 1
+                if offset + new_bits <= 64:
+                    # Simple case: all bits fit in one long
+                    current = new_states[long_index]
+                    current &= ~(mask << offset)
+                    current |= (block_index & mask) << offset
+                    new_states[long_index] = current & ((1 << 64) - 1)
+                    
+                    # Verify write
+                    stored = (new_states[long_index] >> offset) & mask
+                    if stored != block_index:
+                        print(f"ERROR: Value mismatch at {i}: wrote {block_index} but read {stored}")
+                else:
+                    # Complex case: bits span two longs
+                    bits_in_first = 64 - offset
+                    bits_in_second = new_bits - bits_in_first
+                    
+                    # First long
+                    first_mask = (1 << bits_in_first) - 1
+                    current = new_states[long_index]
+                    current &= ~(first_mask << offset)
+                    current |= (block_index & first_mask) << offset
+                    new_states[long_index] = current & ((1 << 64) - 1)
+                    
+                    # Second long if we have room
+                    if long_index + 1 < len(new_states):
+                        second_mask = (1 << bits_in_second) - 1
+                        current = new_states[long_index + 1]
+                        current &= ~second_mask
+                        current |= (block_index >> bits_in_first) & second_mask
+                        new_states[long_index + 1] = current & ((1 << 64) - 1)
+                        
+                        # Verify spanning write
+                        stored_first = (new_states[long_index] >> offset) & first_mask
+                        stored_second = new_states[long_index + 1] & second_mask
+                        stored = stored_first | (stored_second << bits_in_first)
+                        if stored != block_index:
+                            print(f"ERROR: Spanning value mismatch at {i}: wrote {block_index} but read {stored}")
+            
+            # Update the states array
+            states[:] = new_states
+            
+            # Verify blocks after resize
+            for y in range(16):
+                for z in range(16):
+                    for x in range(16):
+                        index = self._get_block_index_from_section(section, x, y, z)
+                        if index is not None and index < len(palette):
+                            blocks_after[(x,y,z)] = index
+            
+            # Check for any missing or changed blocks
+            for pos, before_index in blocks_before.items():
+                x, y, z = pos
+                after_index = blocks_after.get(pos)
+                if after_index is None:
+                    print(f"WARNING: Block at ({x},{y},{z}) was lost during resize (index {before_index})")
+                elif after_index != before_index:
+                    print(f"WARNING: Block at ({x},{y},{z}) changed from index {before_index} to {after_index}")
+            
+        # Use new_bits for writing the current block
+        bits = new_bits
 
         # Write the block index
         self._write_block_index(states, block_index, x, y, z, bits, len(palette))
@@ -636,10 +776,11 @@ class Chunk:
         print(f"DEBUG: Writing block_index={block_index} at x={x},y={y},z={z}")
         print(f"DEBUG: bits={bits}, offset={offset}, long_index={long_index}")
 
-        # Ensure states array is exactly 342 longs (required for MC 1.21.1)
-        if len(states) != 342:
-            new_states = [0] * 342
-            for i in range(min(len(states), 342)):
+        # Ensure states array has the correct number of longs based on bits
+        required_longs = self._calculate_states_count(bits)
+        if len(states) != required_longs:
+            new_states = [0] * required_longs
+            for i in range(min(len(states), required_longs)):
                 new_states[i] = states[i]
             states[:] = new_states
 
@@ -669,28 +810,46 @@ class Chunk:
                 raise ValueError(f"Verification failed! Wrote {block_index} but read back {stored_value}")
         else:
             # Case 2: Block spans two longs
-            current = states[long_index]
-            next_long = states[long_index + 1]
-            
-            print(f"DEBUG: Spanning case - Before: {bin(current)}, {bin(next_long)}")
-            
-            # Calculate bits in each long
-            bits_in_first = 64 - offset
-            bits_in_second = bits - bits_in_first
-            
-            # Handle first long
-            mask_first = (1 << bits_in_first) - 1
-            current &= ~(mask_first << offset)  # Clear bits in first long
-            first_bits = block_index & mask_first
-            current |= (first_bits << offset)  # Set lower bits
-            states[long_index] = current & 0xFFFFFFFFFFFFFFFF
-            
-            # Handle second long
-            mask_second = (1 << bits_in_second) - 1
-            next_long &= ~mask_second  # Clear bits in second long
-            second_bits = (block_index >> bits_in_first) & mask_second
-            next_long |= (second_bits & mask_second)  # Set upper bits with proper mask
-            states[long_index + 1] = next_long & 0xFFFFFFFFFFFFFFFF
+            if long_index + 1 >= len(states):
+                print(f"WARNING: Block at ({x},{y},{z}) spans beyond array bounds, truncating data")
+                # Handle first long only since we can't span
+                current = states[long_index]
+                bits_in_first = 64 - offset
+                mask_first = (1 << bits_in_first) - 1
+                current &= ~(mask_first << offset)
+                first_bits = block_index & mask_first
+                current |= (first_bits << offset)
+                states[long_index] = current & 0xFFFFFFFFFFFFFFFF
+            else:
+                current = states[long_index]
+                next_long = states[long_index + 1]
+                
+                print(f"DEBUG: Spanning case - Before: {bin(current)}, {bin(next_long)}")
+                
+                # Calculate bits in each long
+                bits_in_first = 64 - offset
+                bits_in_second = bits - bits_in_first
+                
+                # Handle first long - preserve existing bits outside our range
+                mask_first = (1 << bits_in_first) - 1
+                current_preserved = current & ~(mask_first << offset)
+                first_bits = block_index & mask_first
+                current = current_preserved | (first_bits << offset)
+                states[long_index] = current & 0xFFFFFFFFFFFFFFFF
+                
+                # Handle second long - preserve existing bits outside our range
+                mask_second = (1 << bits_in_second) - 1
+                next_preserved = next_long & ~mask_second
+                second_bits = (block_index >> bits_in_first) & mask_second
+                next_long = next_preserved | second_bits
+                states[long_index + 1] = next_long & 0xFFFFFFFFFFFFFFFF
+                
+                # Verify the spanning write
+                stored_first = (states[long_index] >> offset) & mask_first
+                stored_second = states[long_index + 1] & mask_second
+                stored_value = stored_first | (stored_second << bits_in_first)
+                if stored_value != block_index:
+                    print(f"WARNING: Block data verification failed at ({x},{y},{z}): wrote {block_index} but read {stored_value}")
             
             print(f"DEBUG: Spanning case - After: {bin(states[long_index])}, {bin(states[long_index + 1])}")
             print(f"DEBUG: bits_in_first={bits_in_first}, bits_in_second={bits_in_second}")
@@ -702,6 +861,24 @@ class Chunk:
             stored_value = stored_first | (stored_second << bits_in_first)
             if stored_value != block_index:
                 raise ValueError(f"Verification failed! Wrote {block_index} but read back {stored_value}")
+    def _calculate_states_count(self, bits: int) -> int:
+        """
+        Calculate the number of longs needed to store all blocks in a section.
+        In versions >= 20w17a, each long must contain a whole number of blocks.
+        
+        Parameters
+        ----------
+        bits : int
+            Number of bits per block
+            
+        Returns
+        -------
+        int
+            Number of longs needed to store all blocks
+        """
+        blocks_per_long = 64 // bits  # Integer division - number of complete blocks per long
+        total_blocks = 16 * 16 * 16  # 4096 blocks per section
+        return (total_blocks + blocks_per_long - 1) // blocks_per_long
 
     def _get_block_index_from_section(self, section: nbt.TAG_Compound, x: int, y: int, z: int) -> int | None:
         """Return the palette index of the block at (x,y,z) in a section, or None if empty."""
