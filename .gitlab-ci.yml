@@ -40,13 +40,9 @@ build_wheel:
 
 release:
   stage: release
-  image: python:3.9
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
   dependencies:
     - build_wheel
-  before_script:
-    - apt-get update && apt-get install -y wget
-    - wget -O /usr/local/bin/release-cli https://gitlab.com/gitlab-org/release-cli/-/releases/v0.21.0/downloads/release-cli-linux-amd64
-    - chmod +x /usr/local/bin/release-cli
   script:
     - echo "Manual test release."
   release:
