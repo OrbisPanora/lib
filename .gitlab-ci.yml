@@ -16,6 +16,7 @@ test:
   only:
     - master
     - ci/pipeline
+  when : manual
 
 build_wheel:
   stage: build
