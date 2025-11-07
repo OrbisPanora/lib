@@ -8,45 +8,93 @@ A Python library designed to read, modify, and write **Minecraft world save file
 
 ---
 
-## 💡 Usage
+# 💡 Usage
 
-### Reading Data
+## install OP lib
 
-```python
-import anvil
-
-region = anvil.Region.from_file('tests/r.0.0.mca')
-
-# Get a chunk at region coordinates 0, 0
-chunk = anvil.Chunk.from_region(region, 0, 0)
-
-# Get a block at local coordinates 0, 0, 0
-# If `section` is not provided, it will be derived from the y-coordinate.
-block = chunk.get_block(0, 0, 0)
-
-print(block)  # <Block(minecraft:air)>
-print(block.id)  # air
-print(block.properties)  # {}
+```bash
+pip install git+ssh://git@codefirst.iut.uca.fr/IUT_INF63/projets-etudiants/OrbisPanora/lib.git
 ```
 
-### Creating Regions
+## test simple region, chunk, block retrieval
+
 ```python
 import anvil
-from random import choice
 
-# Create a new EmptyRegion object at region coordinates (0, 0)
-region = anvil.EmptyRegion(0, 0)
+# link to mca file
+path = '../sae/Egyptian_Odyssey/region/r.0.0.mca'
 
-# Create Block objects used for setting blocks
-stone = anvil.Block('minecraft', 'stone')
-dirt = anvil.Block('minecraft', 'dirt')
+# retrieve a region
+region = anvil.Region.from_file(path) 
 
-# Fill a 16x16x16 cube with either stone or dirt blocks
-for y in range(16):
-    for z in range(16):
-        for x in range(16):
-            region.set_block(choice((stone, dirt)), x, y, z)
+# retrieve a chunk at x<32, z<32 
+chunk = region.get_chunk(0, 0)
 
-# Sa`e to a file
-region.save('r.0.0.mca')
+# retrieve a block at coordinates x<16, -64<y<319, z<16
+block = chunk.get_block(0, 0, 0)
+
+# display details about the block
+print(block.id)   # ex: minecraft:flowing_water
+print(block.properties)	# ex {"level": 0, "falling": true}
+```
+
+
+## test World
+
+```python
+import anvil
+
+# link to the world folder (the one in "/saves")
+path = './testop2'
+
+# retrieve the world
+world = anvil.World(path) 
+
+# retrieve a region (r.x.z.mca)
+region = world.get_region(0, 0)
+
+# retrieve a chunk with global coordinates x, z (no need to stay limited to 32, 32)
+chunk = world.get_chunk(0, 0)
+
+# retrieve a block with global coordinates x, y, z (no need to stay limited to 16, 16, 16)
+block = world.get_block(0, 0, 0)
+
+# display the block
+print(block)
+
+# place a block
+block2 = anvil.Block('minecraft', 'gold_block')
+world.set_block(block2, 201, 162, 201)
+
+# check it in Minecraft (if you test with print, it will display None at first try)
+```
+
+## test patterns (a bit slow)
+
+```python
+import anvil
+import pattern
+
+# link to the world folder (the one in "/saves")
+path = './testop2'
+
+# retrieve the world
+word = anvil.World(path)
+
+# create a cube
+cube = pattern.Cube(blocks = [anvil.Block('minecraft', 'diamond_block'), anvil.Block('minecraft', 'iron_block')], point = (200, 160, 200), size = (3,3,3))
+# retrieve the coordinates for each block to place
+dictblockcube = cube.filled()
+# place these blocks in the world
+word.apply(dictblockcube)
+
+# pyramid
+pyramid = pattern.Pyramid(blocks = [anvil.Block('minecraft', 'sandstone'), anvil.Block('minecraft', 'iron_block')], point = (300, 160, 200), size = (18, 9, 18))
+dictblockpyramid = pyramid.filled()
+word.apply(dictblockpyramid)
+
+# spiral
+spiral = pattern.Spiral(blocks = [anvil.Block('minecraft', 'oak_log'), anvil.Block('minecraft', 'iron_block')], point = (200, 160, 300), size = (18, 30, 18))
+dictblockspiral = spiral.filled()
+word.apply(dictblockspiral)
 ```
