@@ -11,7 +11,7 @@ import gzip
 
 class Region:
     """
-    Read-only region
+    Region handler for Minecraft worlds
 
     Attributes
     ----------
@@ -81,7 +81,8 @@ class Region:
         compression = self.data[off + 4] # 2 most of the time
         if compression == 1:
             raise GZipChunkData('GZip is not supported')
-        compressed_data = self.data[off + 5 : off + 5 + length - 1]
+
+        compressed_data = self.data[off + 5 : off + 5 + length] # - 1
         return nbt.NBTFile(buffer=BytesIO(zlib.decompress(compressed_data)))
 
     def get_chunk(self, chunk_x: int, chunk_z: int) -> 'anvil.Chunk':
@@ -101,6 +102,40 @@ class Region:
         """
         return anvil.Chunk.from_region(self, chunk_x, chunk_z)
 
+    def set_block(self, block: 'anvil.Block', x: int, y: int, z: int, file_path: str) -> None:
+        """
+        Sets a block at the specified coordinates and saves the changes to the region file.
+        
+        Parameters
+        ----------
+        block : :class:`anvil.Block`
+            The block to set
+        x : int
+            Global X coordinate
+        y : int
+            Global Y coordinate
+        z : int
+            Global Z coordinate
+        file_path : str
+            Path to the region file to save to
+        """
+        chunk_x = x >> 4  
+        chunk_z = z >> 4  
+        
+        local_x = x & 15  
+        local_z = z & 15  
+        
+        try:
+            # anvil.Chunk.from_region(self, chunk_x, chunk_z)
+            chunk = self.get_chunk(chunk_x % 32, chunk_z % 32) ## faut lui passer file_path
+            chunk.set_block(block, local_x, y, local_z)
+            
+            self.save_chunk(chunk, file_path)
+        except Exception as e:
+            print(f"Failed to set block at ({x}, {y}, {z}): {e}")
+            #raise Exception(f"Failed to set block at ({x}, {y}, {z}): {e}") from e
+            raise e #Exception(f"Failed to set block at ({x}, {y}, {z})") from e
+    
     def save_chunk(self, chunk: 'anvil.Chunk', file_path: str) -> None:
         """
         Saves a modified chunk to the region file.
@@ -129,20 +164,16 @@ class Region:
                 level_tag.tags.append(nbt_data)
             nbt_file.tags = [level_tag]
         
+        # Serialize NBT data to bytes
+        buffer = BytesIO()
+        nbt_file.write_file(fileobj=buffer)
+        buffer.seek(0)
 
-        try:
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.nbt') as tmp:
-                nbt_file.write_file(tmp.name)
-                # Lire le fichier gzip et décompresser
-                with gzip.open(tmp.name, 'rb') as gz_file:
-                    decompressed = gz_file.read()
-                compressed_data = zlib.compress(decompressed)
-        finally:
-            try:
-                os.unlink(tmp.name)
-            except:
-                pass
-        
+        # Skip the gzip header (10 bytes) and footer (8 bytes) to get raw deflate data
+        # or better: decompress gzip then recompress with zlib
+        nbt_bytes = gzip.decompress(buffer.read())
+        compressed_data = zlib.compress(nbt_bytes)
+
         chunk_x, chunk_z = chunk.x, chunk.z
         off = self.header_offset(chunk_x, chunk_z)
         
@@ -180,8 +211,7 @@ class Region:
         chunk_data_start = new_offset * 4096
         
         chunk_data = bytearray()
-        # Length must include the compression type byte
-        chunk_data.extend(data_length.to_bytes(4, byteorder='big')) 
+        chunk_data.extend((len(compressed_data) + 1).to_bytes(4, byteorder='big'))  # +1 for compression byte
         chunk_data.append(2)  # Compression type (2 = zlib)
         chunk_data.extend(compressed_data)
         
@@ -190,12 +220,12 @@ class Region:
             chunk_data.append(0)
      
         region_data = bytearray(self.data)
-        
-        # Ensure region_data is large enough
+
+        # Extend the region data if necessary
         required_size = chunk_data_start + len(chunk_data)
         if len(region_data) < required_size:
-            region_data.extend([0] * (required_size - len(region_data)))
-        
+            region_data.extend(bytearray(required_size - len(region_data)))
+
         region_data[chunk_data_start:chunk_data_start + len(chunk_data)] = chunk_data
         self.data = bytes(region_data)
         
@@ -217,3 +247,129 @@ class Region:
                 return cls(data=f.read())
         else:
             return cls(data=file.read())
+
+
+    def replace_block_at(self, x: int, y: int, z: int, new_block: Union[str, 'anvil.Block'], file_path: str) -> bool:
+        """
+        Replace a single block at specific global coordinates.
+
+        Parameters
+        ----------
+        x : int
+            Global X coordinate
+        y : int
+            Global Y coordinate
+        z : int
+            Global Z coordinate
+        new_block : Union[str, anvil.Block]
+            The replacement block
+        file_path : str
+            Path to the region file to save to
+
+        Returns
+        -------
+        bool
+            True if the block was replaced, False otherwise
+
+        Example
+        -------
+        >>> region.replace_block_at(100, 64, 200, "minecraft:diamond_block", "r.0.0.mca")
+        """
+        chunk_x = x >> 4
+        chunk_z = z >> 4
+
+        local_x = x & 15
+        local_z = z & 15
+
+        try:
+            chunk = self.get_chunk(chunk_x % 32, chunk_z % 32)
+
+            if chunk.replace_block_at(local_x, y, local_z, new_block):
+                self.save_chunk(chunk, file_path)
+                return True
+
+            return False
+        except Exception:
+            return False
+
+    def replace_blocks(
+        self,
+        old_block: Union[str, 'anvil.Block'],
+        new_block: Union[str, 'anvil.Block'],
+        file_path: str,
+        chunks: Union[Tuple[int, int], list[Tuple[int, int]], None] = None
+    ) -> int:
+        """
+        Replace all occurrences of a specific block type with another block type
+        in one or more chunks of the region.
+
+        Parameters
+        ----------
+        old_block : Union[str, anvil.Block]
+            The block to replace (either a block name like "minecraft:stone" or a Block object)
+        new_block : Union[str, anvil.Block]
+            The replacement block (either a block name like "minecraft:dirt" or a Block object)
+        file_path : str
+            Path to the region file to save to
+        chunks : Union[Tuple[int, int], list[Tuple[int, int]], None], optional
+            Either:
+            - A single chunk coordinate tuple (chunk_x, chunk_z)
+            - A list of chunk coordinate tuples [(chunk_x1, chunk_z1), (chunk_x2, chunk_z2), ...]
+            - None to process all chunks in the region (default)
+
+        Returns
+        -------
+        int
+            The total number of blocks replaced across all processed chunks
+
+        Examples
+        --------
+        >>> # Replace in a single chunk
+        >>> count = region.replace_blocks("minecraft:stone", "minecraft:dirt", "r.0.0.mca", chunks=(5, 10))
+
+        >>> # Replace in multiple chunks
+        >>> count = region.replace_blocks("minecraft:oak_log", "minecraft:birch_log", "r.0.0.mca",
+        ...                               chunks=[(0, 0), (1, 0), (0, 1)])
+
+        >>> # Replace in all chunks of the region
+        >>> count = region.replace_blocks("minecraft:sand", "minecraft:gravel", "r.0.0.mca")
+        """
+        from typing import List
+
+        total_count = 0
+        chunks_to_process: List[Tuple[int, int]] = []
+
+        # Determine which chunks to process
+        if chunks is None:
+            # Process all chunks in the region (32x32)
+            for chunk_z in range(32):
+                for chunk_x in range(32):
+                    if self.chunk_location(chunk_x, chunk_z) != (0, 0):
+                        chunks_to_process.append((chunk_x, chunk_z))
+        elif isinstance(chunks, tuple) and len(chunks) == 2:
+            # Single chunk
+            chunks_to_process.append(chunks)
+        elif isinstance(chunks, list):
+            # Multiple chunks
+            chunks_to_process = chunks
+        else:
+            raise ValueError("chunks parameter must be a tuple (x, z), a list of tuples, or None")
+
+        # Process each chunk
+        for chunk_x, chunk_z in chunks_to_process:
+            try:
+                chunk = self.get_chunk(chunk_x % 32, chunk_z % 32)
+
+                # Replace blocks in this chunk
+                count = chunk.replace_blocks(old_block, new_block)
+
+                if count > 0:
+                    # Save the chunk if any blocks were replaced
+                    self.save_chunk(chunk, file_path)
+                    total_count += count
+
+            except Exception:
+                # Skip chunks that can't be loaded or processed
+                continue
+
+        return total_count
