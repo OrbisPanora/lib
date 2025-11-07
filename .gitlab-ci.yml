@@ -16,7 +16,7 @@ test:
   only:
     - master
     - ci/pipeline
-  when : manual
+  when : manual # Remove this when all of the tests are refactored
 
 build_wheel:
   stage: build
@@ -27,7 +27,7 @@ build_wheel:
   script:
     - |
       if [ "$CI_COMMIT_REF_NAME" = "ci/pipeline" ]; then \
-        sed -i "s/version=.*/version='0.0.0-test.$CI_PIPELINE_ID',/" setup.py; \
+        sed -i "s/version=.*/version='0.0.0.dev$CI_PIPELINE_ID',/" setup.py; \
       fi
     - python -m build --wheel
   artifacts:
