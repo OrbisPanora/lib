@@ -44,6 +44,7 @@ release:
   dependencies:
     - build_wheel
   script:
+    - WHEEL_FILE=$(ls dist/*.whl | head -n1 | xargs basename)
     - echo "Manual test release."
   release:
     tag_name: "test-release-$CI_PIPELINE_ID"
@@ -51,7 +52,7 @@ release:
     assets:
       links:
         - name: "Download .whl"
-          url: "${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/file/dist/$(ls dist/*.whl | head -n1)"
+          url: "${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/file/dist/${WHEEL_FILE}"
   only:
     - ci/pipeline
   when: manual
