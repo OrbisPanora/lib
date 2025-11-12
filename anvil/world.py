@@ -621,3 +621,581 @@ class World:
         """
         if self._region_cache is not None:
             self._region_cache.invalidate((region_x, region_z))
+    
+
+    
+    def get_biome(self, x: int, y: int, z: int) -> Optional[Biome]:
+        """
+        Get a biome at the specified global coordinates.
+        
+        Parameters
+        ----------
+        x : int
+            Global X coordinate
+        y : int
+            Global Y coordinate
+        z : int
+            Global Z coordinate
+            
+        Returns
+        -------
+        Optional[Biome]
+            The biome at the specified coordinates, or None if not found
+        
+        Example
+        -------
+        >>> biome = world.get_biome(100, 64, 200)
+        >>> print(biome.name())
+        """
+        chunk_x = x >> 4
+        chunk_z = z >> 4
+        
+        chunk = self.get_chunk(chunk_x, chunk_z)
+        if chunk is None:
+            return None
+        
+        local_x = x & 15
+        local_z = z & 15
+        
+        try:
+            return chunk.get_biome(local_x, y, local_z)
+        except:
+            return None
+    
+    def set_biome(self, biome: Biome, x: int, y: int, z: int) -> None:
+        """
+        Set a biome at the specified global coordinates.
+        
+        Parameters
+        ----------
+        biome : Biome
+            The biome to set
+        x : int
+            Global X coordinate
+        y : int
+            Global Y coordinate
+        z : int
+            Global Z coordinate
+        
+        Example
+        -------
+        >>> from anvil import Biome
+        >>> world.set_biome(Biome('desert'), 100, 64, 200)
+        """
+        chunk_x = x >> 4
+        chunk_z = z >> 4
+        
+        chunk = self.get_chunk(chunk_x, chunk_z)
+        if chunk is None:
+            # Create new chunk if needed
+            region_x = chunk_x >> 5
+            region_z = chunk_z >> 5
+            region = self.get_region(region_x, region_z)
+            if isinstance(region, EmptyRegion):
+                empty_chunk = EmptyChunk(chunk_x, chunk_z)
+                region.add_chunk(empty_chunk)
+                chunk = empty_chunk
+        
+        local_x = x & 15
+        local_z = z & 15
+        
+        try:
+            chunk.set_biome(biome, local_x, y, local_z)
+        except Exception as e:
+            print(f"Failed to set biome at ({x}, {y}, {z}): {e}")
+    
+    def replace_biomes(self, old_biome: Union[str, Biome], new_biome: Union[str, Biome],
+                       bounds: Optional[Tuple[int, int, int, int, int, int]] = None) -> int:
+        """
+        Replace all occurrences of a specific biome with another biome.
+        
+        Parameters
+        ----------
+        old_biome : Union[str, Biome]
+            The biome to replace (either a biome name like "minecraft:desert" or a Biome object)
+        new_biome : Union[str, Biome]
+            The replacement biome (either a biome name like "minecraft:plains" or a Biome object)
+        bounds : Optional[Tuple[int, int, int, int, int, int]]
+            Bounding box as (min_x, min_y, min_z, max_x, max_y, max_z)
+            If None, replaces biomes in the entire world
+        
+        Returns
+        -------
+        int
+            The number of biomes replaced
+        
+        Example
+        -------
+        >>> count = world.replace_biomes("minecraft:desert", "minecraft:plains")
+        >>> count = world.replace_biomes(Biome('desert'), Biome('plains'), bounds=(0, 60, 0, 100, 70, 100))
+        """
+        if isinstance(old_biome, str):
+            old_biome = Biome.from_name(old_biome)
+        if isinstance(new_biome, str):
+            new_biome = Biome.from_name(new_biome)
+        
+        old_biome_name = old_biome.name()
+        count = 0
+        
+        if bounds:
+            x1, y1, z1, x2, y2, z2 = bounds
+            for x, y, z, block in self.stream_blocks(x1, y1, z1, x2, y2, z2):
+                try:
+                    current_biome = self.get_biome(x, y, z)
+                    if current_biome and current_biome.name() == old_biome_name:
+                        self.set_biome(new_biome, x, y, z)
+                        count += 1
+                except:
+                    continue
+        else:
+            world_bounds = self.get_world_bounds()
+            if world_bounds:
+                min_x, min_y, min_z, max_x, max_y, max_z = world_bounds
+                for x, y, z, block in self.stream_blocks(min_x, min_y, min_z, max_x, max_y, max_z):
+                    try:
+                        current_biome = self.get_biome(x, y, z)
+                        if current_biome and current_biome.name() == old_biome_name:
+                            self.set_biome(new_biome, x, y, z)
+                            count += 1
+                    except:
+                        continue
+        
+        return count
+    
+
+    
+    def find_blocks(self, block: Union[str, Block], 
+                    bounds: Optional[Tuple[int, int, int, int, int, int]] = None,
+                    limit: Optional[int] = None) -> List[Tuple[int, int, int]]:
+        """
+        Find all positions of a specific block type in the world.
+        
+        Parameters
+        ----------
+        block : Union[str, Block]
+            The block to find (either a block name like "minecraft:diamond_ore" or a Block object)
+        bounds : Optional[Tuple[int, int, int, int, int, int]]
+            Bounding box as (min_x, min_y, min_z, max_x, max_y, max_z)
+            If None, searches the entire loaded world
+        limit : Optional[int]
+            Maximum number of blocks to find (None = no limit)
+        
+        Returns
+        -------
+        List[Tuple[int, int, int]]
+            List of (x, y, z) positions where the block was found
+        
+        Example
+        -------
+        >>> positions = world.find_blocks("minecraft:diamond_ore", limit=10)
+        >>> for x, y, z in positions:
+        ...     print(f"Found diamond ore at {x}, {y}, {z}")
+        """
+        if isinstance(block, str):
+            block = Block.from_name(block)
+        
+        block_name = block.name()
+        positions = []
+        
+        if bounds:
+            x1, y1, z1, x2, y2, z2 = bounds
+        else:
+            world_bounds = self.get_world_bounds()
+            if not world_bounds:
+                return positions
+            x1, y1, z1, x2, y2, z2 = world_bounds
+        
+        for x, y, z, current_block in self.stream_blocks(x1, y1, z1, x2, y2, z2):
+            if current_block and current_block.name() == block_name:
+                if not block.properties or current_block.properties == block.properties:
+                    positions.append((x, y, z))
+                    if limit and len(positions) >= limit:
+                        return positions
+        
+        return positions
+    
+    def find_nearest_block(self, block: Union[str, Block], x: int, y: int, z: int,
+                          max_radius: int = 100) -> Optional[Tuple[int, int, int, float]]:
+        """
+        Find the nearest block of a specific type from given coordinates.
+        
+        Parameters
+        ----------
+        block : Union[str, Block]
+            The block to find
+        x, y, z : int
+            Starting coordinates
+        max_radius : int
+            Maximum search radius in blocks (default: 100)
+        
+        Returns
+        -------
+        Optional[Tuple[int, int, int, float]]
+            (x, y, z, distance) of nearest block, or None if not found
+        
+        Example
+        -------
+        >>> result = world.find_nearest_block("minecraft:diamond_ore", 100, 64, 200)
+        >>> if result:
+        ...     x, y, z, distance = result
+        ...     print(f"Found at {x}, {y}, {z}, distance: {distance:.2f}")
+        """
+        if isinstance(block, str):
+            block = Block.from_name(block)
+        
+        block_name = block.name()
+        nearest = None
+        min_distance = float('inf')
+        
+        bounds = (x - max_radius, y - max_radius, z - max_radius,
+                 x + max_radius, y + max_radius, z + max_radius)
+        
+        for bx, by, bz, current_block in self.stream_blocks(*bounds):
+            if current_block and current_block.name() == block_name:
+                if not block.properties or current_block.properties == block.properties:
+                    distance = math.sqrt((bx - x)**2 + (by - y)**2 + (bz - z)**2)
+                    if distance < min_distance:
+                        min_distance = distance
+                        nearest = (bx, by, bz, distance)
+        
+        return nearest
+    
+    def scan_area(self, x1: int, y1: int, z1: int, x2: int, y2: int, z2: int) -> Dict[str, int]:
+        """
+        Scan an area and return block type distribution.
+        
+        Parameters
+        ----------
+        x1, y1, z1 : int
+            Minimum coordinates
+        x2, y2, z2 : int
+            Maximum coordinates
+        
+        Returns
+        -------
+        Dict[str, int]
+            Dictionary mapping block names to their counts
+        
+        Example
+        -------
+        >>> distribution = world.scan_area(0, 60, 0, 16, 70, 16)
+        >>> for block_name, count in distribution.items():
+        ...     print(f"{block_name}: {count}")
+        """
+        distribution = {}
+        
+        for x, y, z, block in self.stream_blocks(x1, y1, z1, x2, y2, z2):
+            if block:
+                block_name = block.name()
+                distribution[block_name] = distribution.get(block_name, 0) + 1
+        
+        return distribution
+    
+    
+    def unload_region(self, region_x: int, region_z: int, save: bool = True) -> bool:
+        """
+        Unload a region from memory, optionally saving it first.
+        
+        Parameters
+        ----------
+        region_x : int
+            Region X coordinate
+        region_z : int
+            Region Z coordinate
+        save : bool
+            Whether to save the region before unloading (default: True)
+        
+        Returns
+        -------
+        bool
+            True if region was unloaded, False if it wasn't loaded
+        
+        Example
+        -------
+        >>> world.unload_region(0, 0, save=True)
+        """
+        region_coords = (region_x, region_z)
+        
+        if region_coords not in self.regions:
+            return False
+        
+        if save:
+            region = self.regions[region_coords]
+            region_path = os.path.join(self.region_dir, f"r.{region_x}.{region_z}.mca")
+            
+            if isinstance(region, EmptyRegion):
+                region.save(region_path)
+            elif isinstance(region, Region):
+                region.save(region_path)
+        
+        del self.regions[region_coords]
+        
+        if self._region_cache is not None:
+            self._region_cache.invalidate(region_coords)
+        
+        return True
+    
+    def unload_all_regions(self, save: bool = True) -> int:
+        """
+        Unload all regions from memory.
+        
+        Parameters
+        ----------
+        save : bool
+            Whether to save regions before unloading (default: True)
+        
+        Returns
+        -------
+        int
+            Number of regions unloaded
+        
+        Example
+        -------
+        >>> count = world.unload_all_regions(save=True)
+        >>> print(f"Unloaded {count} regions")
+        """
+        region_coords_list = list(self.regions.keys())
+        count = 0
+        
+        for region_x, region_z in region_coords_list:
+            if self.unload_region(region_x, region_z, save=save):
+                count += 1
+        
+        return count
+    
+    def get_memory_usage(self) -> dict:
+        """
+        Get memory usage statistics for the world.
+        
+        Returns
+        -------
+        dict
+            Dictionary with memory usage information
+        
+        Example
+        -------
+        >>> stats = world.get_memory_usage()
+        >>> print(f"Loaded regions: {stats['loaded_regions']}")
+        >>> print(f"Cached chunks: {stats['cached_chunks']}")
+        """
+        return {
+            'loaded_regions': len(self.regions),
+            'cached_chunks': len(self._chunk_cache) if self._chunk_cache else 0,
+            'cached_regions': len(self._region_cache) if self._region_cache else 0,
+            'cache_stats': self.get_cache_stats()
+        }
+    
+
+    
+    def get_world_info(self) -> dict:
+        """
+        Get general information about the world.
+        
+        Returns
+        -------
+        dict
+            Dictionary with world information
+        
+        Example
+        -------
+        >>> info = world.get_world_info()
+        >>> print(f"World folder: {info['world_folder']}")
+        >>> print(f"Loaded regions: {info['loaded_regions']}")
+        """
+        bounds = self.get_world_bounds()
+        
+        return {
+            'world_folder': self.world_folder,
+            'loaded_regions': len(self.regions),
+            'region_coordinates': list(self.regions.keys()),
+            'bounds': bounds,
+            'size_x': (bounds[3] - bounds[0] + 1) if bounds else 0,
+            'size_z': (bounds[5] - bounds[2] + 1) if bounds else 0,
+            'cache_enabled': self._chunk_cache is not None,
+            'chunk_cache_size': self._chunk_cache.max_size if self._chunk_cache else 0,
+            'region_cache_size': self._region_cache.max_size if self._region_cache else 0
+        }
+    
+    def get_block_distribution(self, bounds: Optional[Tuple[int, int, int, int, int, int]] = None,
+                               top_n: Optional[int] = None) -> Dict[str, int]:
+        """
+        Get the distribution of block types in the world or within bounds.
+        
+        Parameters
+        ----------
+        bounds : Optional[Tuple[int, int, int, int, int, int]]
+            Bounding box as (min_x, min_y, min_z, max_x, max_y, max_z)
+            If None, analyzes the entire loaded world
+        top_n : Optional[int]
+            Return only the top N most common blocks (None = all blocks)
+        
+        Returns
+        -------
+        Dict[str, int]
+            Dictionary mapping block names to their counts, sorted by count
+        
+        Example
+        -------
+        >>> distribution = world.get_block_distribution(top_n=10)
+        >>> for block_name, count in distribution.items():
+        ...     print(f"{block_name}: {count}")
+        """
+        if bounds:
+            x1, y1, z1, x2, y2, z2 = bounds
+        else:
+            world_bounds = self.get_world_bounds()
+            if not world_bounds:
+                return {}
+            x1, y1, z1, x2, y2, z2 = world_bounds
+        
+        distribution = self.scan_area(x1, y1, z1, x2, y2, z2)
+        
+        # Sort by count (descending)
+        sorted_distribution = dict(sorted(distribution.items(), key=lambda x: x[1], reverse=True))
+        
+        if top_n:
+            return dict(list(sorted_distribution.items())[:top_n])
+        
+        return sorted_distribution
+    
+    def get_height_map(self, x: int, z: int, start_y: int = 319, end_y: int = -64) -> Optional[int]:
+        """
+        Get the Y coordinate of the highest non-air block at given X, Z coordinates.
+        
+        Parameters
+        ----------
+        x : int
+            Global X coordinate
+        z : int
+            Global Z coordinate
+        start_y : int
+            Y coordinate to start searching from (default: 319, world top)
+        end_y : int
+            Y coordinate to stop searching at (default: -64, world bottom)
+        
+        Returns
+        -------
+        Optional[int]
+            Y coordinate of highest non-air block, or None if all air
+        
+        Example
+        -------
+        >>> height = world.get_height_map(100, 200)
+        >>> print(f"Surface height at (100, 200): {height}")
+        """
+        step = 1 if end_y > start_y else -1
+        
+        for y in range(start_y, end_y + step, step):
+            block = self.get_block(x, y, z)
+            if block and block.name() != "minecraft:air":
+                return y
+        
+        return None
+    
+
+    
+    def copy_area(self, src_x1: int, src_y1: int, src_z1: int,
+                  src_x2: int, src_y2: int, src_z2: int,
+                  dest_x: int, dest_y: int, dest_z: int) -> int:
+        """
+        Copy blocks from one area to another within the world.
+        
+        Parameters
+        ----------
+        src_x1, src_y1, src_z1 : int
+            Source area minimum coordinates
+        src_x2, src_y2, src_z2 : int
+            Source area maximum coordinates
+        dest_x, dest_y, dest_z : int
+            Destination starting coordinates
+        
+        Returns
+        -------
+        int
+            Number of blocks copied
+        
+        Example
+        -------
+        >>> # Copy a 10x10x10 area
+        >>> count = world.copy_area(0, 64, 0, 10, 74, 10, 100, 64, 100)
+        >>> print(f"Copied {count} blocks")
+        """
+        count = 0
+        offset_x = dest_x - src_x1
+        offset_y = dest_y - src_y1
+        offset_z = dest_z - src_z1
+        
+        for x, y, z, block in self.stream_blocks(src_x1, src_y1, src_z1, src_x2, src_y2, src_z2):
+            if block:
+                new_x = x + offset_x
+                new_y = y + offset_y
+                new_z = z + offset_z
+                self.set_block(block, new_x, new_y, new_z)
+                count += 1
+        
+        return count
+    
+    def fill_area(self, block: Union[str, Block],
+                  x1: int, y1: int, z1: int,
+                  x2: int, y2: int, z2: int) -> int:
+        """
+        Fill an area with a specific block type.
+        
+        Parameters
+        ----------
+        block : Union[str, Block]
+            The block to fill with
+        x1, y1, z1 : int
+            Minimum coordinates
+        x2, y2, z2 : int
+            Maximum coordinates
+        
+        Returns
+        -------
+        int
+            Number of blocks placed
+        
+        Example
+        -------
+        >>> # Fill a 10x10x10 cube with stone
+        >>> count = world.fill_area("minecraft:stone", 0, 64, 0, 10, 74, 10)
+        >>> print(f"Placed {count} blocks")
+        """
+        if isinstance(block, str):
+            block = Block.from_name(block)
+        
+        count = 0
+        min_x, max_x = min(x1, x2), max(x1, x2)
+        min_y, max_y = min(y1, y2), max(y1, y2)
+        min_z, max_z = min(z1, z2), max(z1, z2)
+        
+        for x in range(min_x, max_x + 1):
+            for y in range(min_y, max_y + 1):
+                for z in range(min_z, max_z + 1):
+                    self.set_block(block, x, y, z)
+                    count += 1
+        
+        return count
+    
+    def clear_area(self, x1: int, y1: int, z1: int, x2: int, y2: int, z2: int) -> int:
+        """
+        Clear an area by filling it with air blocks.
+        
+        Parameters
+        ----------
+        x1, y1, z1 : int
+            Minimum coordinates
+        x2, y2, z2 : int
+            Maximum coordinates
+        
+        Returns
+        -------
+        int
+            Number of blocks cleared
+        
+        Example
+        -------
+        >>> count = world.clear_area(0, 64, 0, 10, 74, 10)
+        >>> print(f"Cleared {count} blocks")
+        """
+        return self.fill_area("minecraft:air", x1, y1, z1, x2, y2, z2)
