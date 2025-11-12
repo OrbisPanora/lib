@@ -51,6 +51,7 @@ class CacheManager:
         """
         with self._lock:
             if key in self.cache:
+                # Move to end to mark as recently used (LRU)
                 self.cache.move_to_end(key)
                 self.hits += 1
                 return self.cache[key]
@@ -71,11 +72,13 @@ class CacheManager:
         """
         with self._lock:
             if key in self.cache:
+                # Update existing entry and mark as recently used
                 self.cache.move_to_end(key)
                 self.cache[key] = value
             else:
                 self.cache[key] = value
                 
+                # Evict least recently used item if cache is full
                 if len(self.cache) > self.max_size:
                     self.cache.popitem(last=False)
     

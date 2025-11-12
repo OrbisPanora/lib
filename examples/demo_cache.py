@@ -43,12 +43,12 @@ print(f"      Average per block: {time_with_cache / 100:.4f}ms\n")
 # Show the difference
 print("=" * 50)
 if time_with_cache < time_no_cache:
-    print(f"⚡ SPEEDUP: {time_no_cache / time_with_cache:.1f}x faster with cache!")
+    print(f"SPEEDUP: {time_no_cache / time_with_cache:.1f}x faster with cache!")
     print(f"   Without cache: {time_no_cache:.2f}ms")
     print(f"   With cache:    {time_with_cache:.2f}ms")
     print(f"   Time saved:    {time_no_cache - time_with_cache:.2f}ms")
 else:
-    print(f"⚠️  Cache overhead for small operations")
+    print(f"Cache overhead for small operations")
     print(f"   (Cache is beneficial for repeated access)")
 print("=" * 50 + "\n")
 
@@ -107,5 +107,5 @@ print(f"      Time: {time_with_cache_multi:.2f}ms")
 print(f"      Speedup: {time_no_cache_multi / time_with_cache_multi:.1f}x\n")
 
 print("=" * 50)
-print("✅ Cache provides significant performance improvement!")
+print("Cache provides significant performance improvement!")
 print("=" * 50)

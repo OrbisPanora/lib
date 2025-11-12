@@ -121,8 +121,10 @@ class Region:
             if cached_chunk is not None:
                 return cached_chunk
         
+        # Load chunk from region file
         chunk = anvil.Chunk.from_region(self, chunk_x, chunk_z)
         
+        # Cache the loaded chunk if caching is enabled
         if self._chunk_cache is not None and chunk is not None:
             self._chunk_cache.put((chunk_x, chunk_z), chunk)
         
@@ -152,8 +154,8 @@ class Region:
         local_z = z & 15  
         
         try:
-            # anvil.Chunk.from_region(self, chunk_x, chunk_z)
-            chunk = self.get_chunk(chunk_x % 32, chunk_z % 32) ## faut lui passer file_path
+            # Get chunk from region
+            chunk = self.get_chunk(chunk_x % 32, chunk_z % 32)
             chunk.set_block(block, local_x, y, local_z)
             
             self.save_chunk(chunk, file_path)

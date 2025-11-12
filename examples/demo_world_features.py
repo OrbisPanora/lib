@@ -39,26 +39,26 @@ positions = world.find_blocks("minecraft:diamond_ore",
                               limit=5)
 print(f"Found {len(positions)} diamond ore blocks:")
 for x, y, z in positions[:3]:
-    print(f"  - Position: ({x}, {y}, {z})")
+    print(f"- Position: ({x}, {y}, {z})")
 
 print("\nSearching for nearest stone from (100, 64, 200)...")
 result = world.find_nearest_block("minecraft:stone", 100, 64, 200, max_radius=50)
 if result:
     x, y, z, distance = result
-    print(f"  Found at ({x}, {y}, {z}), distance: {distance:.2f} blocks")
+    print(f"Found at ({x}, {y}, {z}), distance: {distance:.2f} blocks")
 
 print("\nScanning area (100, 60, 100) to (116, 70, 116)...")
 distribution = world.scan_area(100, 60, 100, 116, 70, 116)
 print(f"Found {len(distribution)} different block types:")
 for block_name, count in list(distribution.items())[:5]:
-    print(f"  - {block_name}: {count}")
+    print(f"- {block_name}: {count}")
 
 print("\n4. STATISTICS")
 print("-" * 60)
 print("Top 10 most common blocks in loaded world:")
 top_blocks = world.get_block_distribution(top_n=10)
 for i, (block_name, count) in enumerate(top_blocks.items(), 1):
-    print(f"  {i}. {block_name}: {count:,} blocks")
+    print(f"{i}. {block_name}: {count:,} blocks")
 
 stone_count = world.count_blocks("minecraft:stone", bounds=(0, 0, 0, 100, 100, 100))
 print(f"\nStone blocks in (0,0,0) to (100,100,100): {stone_count:,}")
@@ -67,7 +67,7 @@ print("\nHeight map samples:")
 for x, z in [(100, 100), (150, 150), (200, 200)]:
     height = world.get_height_map(x, z)
     if height:
-        print(f"  Surface at ({x}, {z}): Y={height}")
+        print(f"Surface at ({x}, {z}): Y={height}")
 
 print("\n5. MEMORY MANAGEMENT")
 print("-" * 60)
@@ -80,10 +80,10 @@ cache_stats = memory_stats['cache_stats']
 if cache_stats['chunk_cache']:
     chunk_cache = cache_stats['chunk_cache']
     print(f"\nChunk cache:")
-    print(f"  Size: {chunk_cache['size']}/{chunk_cache['max_size']}")
-    print(f"  Hits: {chunk_cache['hits']}")
-    print(f"  Misses: {chunk_cache['misses']}")
-    print(f"  Hit rate: {chunk_cache['hit_rate']}")
+    print(f"Size: {chunk_cache['size']}/{chunk_cache['max_size']}")
+    print(f"Hits: {chunk_cache['hits']}")
+    print(f"Misses: {chunk_cache['misses']}")
+    print(f"Hit rate: {chunk_cache['hit_rate']}")
 
 success = world.unload_region(0, 0, save=True)
 print(f"Unloaded region (0, 0): {success}")
@@ -91,9 +91,9 @@ print(f"Unloaded region (0, 0): {success}")
 print("\n6. AREA OPERATIONS")
 print("-" * 60)
 print("Area operations available:")
-print("  - copy_area(): Copy blocks from one area to another")
-print("  - fill_area(): Fill an area with a specific block")
-print("  - clear_area(): Clear an area (fill with air)")
+print("- copy_area(): Copy blocks from one area to another")
+print("- fill_area(): Fill an area with a specific block")
+print("- clear_area(): Clear an area (fill with air)")
 
 
 print("\n7. STREAMING OPERATIONS")
@@ -114,22 +114,22 @@ print(f"Streamed {chunk_count} chunks")
 print("\n8. CACHE OPERATIONS")
 print("-" * 60)
 print("Cache operations available:")
-print("  - clear_cache(): Clear all caches")
-print("  - get_cache_stats(): Get cache statistics")
-print("  - invalidate_chunk(): Invalidate specific chunk")
-print("  - invalidate_region(): Invalidate specific region")
+print("- clear_cache(): Clear all caches")
+print("- get_cache_stats(): Get cache statistics")
+print("- invalidate_chunk(): Invalidate specific chunk")
+print("- invalidate_region(): Invalidate specific region")
 
 stats = world.get_cache_stats()
 print(f"\nCurrent cache stats:")
-print(f"  Chunk cache: {stats['chunk_cache']}")
-print(f"  Region cache: {stats['region_cache']}")
+print(f"Chunk cache: {stats['chunk_cache']}")
+print(f"Region cache: {stats['region_cache']}")
 
 print("\n" + "=" * 60)
 print("DEMO COMPLETE - All features demonstrated!")
 print("=" * 60)
 print("\nTips:")
-print("  - Use bounds parameter to limit operations to specific areas")
-print("  - Use limit parameter in searches to avoid long operations")
-print("  - Monitor memory usage with get_memory_usage()")
-print("  - Unload regions when done to free memory")
-print("  - Always save before unloading if you made changes")
+print("- Use bounds parameter to limit operations to specific areas")
+print("- Use limit parameter in searches to avoid long operations")
+print("- Monitor memory usage with get_memory_usage()")
+print("- Unload regions when done to free memory")
+print("- Always save before unloading if you made changes")
