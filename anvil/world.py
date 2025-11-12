@@ -174,11 +174,11 @@ class World:
                 
                 self.regions[(region_x, region_z)] = empty_region
                 empty_region.set_block(block, x, y, z)
-    
+
     def replace_block_at(self, x: int, y: int, z: int, new_block: Union[str, Block]) -> bool:
         """
         Replace a single block at specific global coordinates.
-        
+
         Parameters
         ----------
         x : int
@@ -189,28 +189,30 @@ class World:
             Global Z coordinate
         new_block : Union[str, Block]
             The replacement block (either a block name like "minecraft:dirt" or a Block object)
-        
+
         Returns
         -------
         bool
             True if the block was replaced, False otherwise
-        
+
         Example
         -------
         >>> world.replace_block_at(100, 64, -50, "minecraft:diamond_block")
         >>> world.replace_block_at(100, 64, -50, Block.from_name("minecraft:stone"))
         """
-        try:
-            # Convert string to Block object if needed
-            if isinstance(new_block, str):
-                new_block = Block.from_name(new_block)
-            
-            self.set_block(new_block, x, y, z)
-            return True
-        except OutOfBoundsCoordinates:
+        region_x = x >> 9
+        region_z = z >> 9
+
+        region = self.get_region(region_x, region_z)
+
+        if isinstance(region, EmptyRegion):
             return False
-    
-    def replace_blocks(self, old_block: Union[str, Block], new_block: Union[str, Block], 
+
+        file_path = os.path.join(self.world_folder, 'region', f'r.{region_x}.{region_z}.mca')
+
+        return region.replace_block_at(x, y, z, new_block, file_path)
+
+    def replace_blocks(self, old_block: Union[str, Block], new_block: Union[str, Block],
                        bounds: Optional[Tuple[int, int, int, int, int, int]] = None) -> int:
         """
         Replace all occurrences of a specific block type with another block type.

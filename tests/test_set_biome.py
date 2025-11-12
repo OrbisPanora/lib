@@ -1,39 +1,60 @@
+import context as _
 from anvil import Region, Biome
+import shutil
+import os
 
-# Insert the Path of your .mca here
-region_file = r"" 
 
-# Load region file
-region = Region.from_file(region_file)
-chunk = region.get_chunk(0, 0)
+def test_set_chunk_biome(tmp_path):
+    # copie du fichier de test
+    original_file = os.path.join(os.path.dirname(__file__), 'world_files', 'r.0.0.mca')
+    test_file = tmp_path / "test_set_chunk_biome.mca"
+    shutil.copy(original_file, test_file)
 
-# Set entire chunk to ice spikes biome
-print("Setting entire chunk (0, 0) to ice spikes biome...")
-ice_spikes_biome = Biome.from_name("minecraft:ice_spikes")
-chunk.set_chunk_biome(ice_spikes_biome)
+    # chargement et obtention du chunk
+    region = Region.from_file(str(test_file))
+    chunk = region.get_chunk(0, 0)
 
-print("Chunk (0, 0) set to ice spikes!")
+    if chunk is None:
+        print("Chunk (0, 0) n'existe pas, test ignoré")
+        return
 
-# Save changes
-region.save_chunk(chunk, region_file)
-print("Region saved!")
+    # définir tout le chunk au biome ice_spikes
+    ice_spikes = Biome.from_name("minecraft:ice_spikes")
+    chunk.set_chunk_biome(ice_spikes)
 
-print("\n" + "="*60)
-print("Setting single block biome in chunk (0, 0)")
-print("="*60)
+    # sauvegarder et recharger pour vérifier
+    region.save_chunk(chunk, str(test_file))
+    region_reloaded = Region.from_file(str(test_file))
+    chunk_reloaded = region_reloaded.get_chunk(0, 0)
 
-# Set a single block position to jungle biome in the previous chunk
+    if chunk_reloaded:
+        actual = chunk_reloaded.get_biome(8, 64, 8)
+        assert actual.name() == "minecraft:ice_spikes", "Le biome du chunk doit être ice_spikes"
 
-# This actually sets the entire 4x4x4 biome cell containing this position
-print("\nSetting biome at position (8, 40, 8) to jungle...")
-jungle_biome = Biome.from_name("minecraft:jungle")
-chunk.set_biome(jungle_biome, 8, 40, 8)
 
-# Verify the biome was set
-actual_biome = chunk.get_biome(8, 40, 8)
-print(f"Biome at (8, 40, 8): {actual_biome}")
-print(f"Match: {'Passed' if actual_biome.name() == jungle_biome.name() else 'Failed'}")
+def test_set_single_biome_cell(tmp_path):
+    # copie du fichier de test
+    original_file = os.path.join(os.path.dirname(__file__), 'world_files', 'r.0.0.mca')
+    test_file = tmp_path / "test_set_single_biome_cell.mca"
+    shutil.copy(original_file, test_file)
 
-# Save changes
-region.save_chunk(chunk, region_file)
-print("\nRegion saved!")
+    # chargement et obtention du chunk
+    region = Region.from_file(str(test_file))
+    chunk = region.get_chunk(0, 0)
+
+    if chunk is None:
+        print("Chunk (0, 0) n'existe pas, test ignoré")
+        return
+
+    # définir la cellule de biome contenant la position (8, 40, 8) en jungle
+    jungle = Biome.from_name("minecraft:jungle")
+    chunk.set_biome(jungle, 8, 40, 8)
+
+    # sauvegarder et recharger pour vérifier
+    region.save_chunk(chunk, str(test_file))
+    region_reloaded = Region.from_file(str(test_file))
+    chunk_reloaded = region_reloaded.get_chunk(0, 0)
+
+    if chunk_reloaded:
+        actual = chunk_reloaded.get_biome(8, 40, 8)
+        assert actual.name() == "minecraft:jungle", "La cellule de biome doit être jungle"
