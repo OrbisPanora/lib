@@ -150,8 +150,8 @@ def test_region_replace_blocks_in_multiple_chunks(tmp_path):
     region = Region.from_file(str(test_file))
 
     # Replace grass with dirt in chunks (0, 0) and (1, 0)
-    old_block = "minecraft:grass_block"
-    new_block = "minecraft:dirt"
+    old_block = "minecraft:dirt"
+    new_block = "minecraft:coal_block"
 
     count = region.replace_blocks(
         old_block,
@@ -192,4 +192,3 @@ def test_replace_with_block_object(tmp_path):
     print(f"Replaced {count} stone blocks with andesite using Block objects")
 
     assert count >= 0, "Count should be non-negative"
-

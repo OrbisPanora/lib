@@ -4,13 +4,13 @@ with open('README.md', 'r') as file:
     long_description = file.read()
 
 setuptools.setup(
-    name='anvil-parser2',
-    version='0.10.6',
-    author='0xTiger',
-    description='A parser for the Minecraft anvil file format, supports all Minecraft verions',
+    name='orbispanora-parser',
+    version='0.1', # Need top be increment at each release 
+    author='OrbisPanora',
+    description='An updated version of the anvil-parser2, parser for the Minecraft anvil file format, supports all Minecraft verions',
     long_description=long_description,
     long_description_content_type='text/markdown',
-    url='https://github.com/0xTiger/anvil-parser2',
+    url='https://codefirst.iut.uca.fr/gitlab/IUT_INF63/projets-etudiants/OrbisPanora/lib',
     packages=setuptools.find_packages(),
     classifiers=[
         'Programming Language :: Python :: 3',

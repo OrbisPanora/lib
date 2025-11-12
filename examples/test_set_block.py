@@ -2,7 +2,7 @@ import _path
 import anvil
 
 # Test simple pour vérifier set_block
-world_path = r'C:\Users\zayd2\AppData\Roaming\.minecraft\saves\New World test sde fdp'
+world_path = r'your_path'
 print(f"📁 Ouverture du monde: {world_path}")
 
 word = anvil.World(world_path)
