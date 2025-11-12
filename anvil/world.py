@@ -14,11 +14,14 @@ from .cache_manager import CacheManager
 class World:
     """
     Represents a Minecraft world, managing multiple regions with LRU caching.
+    Supports Overworld, Nether (DIM-1), and End (DIM1) dimensions.
     
     Attributes
     ----------
     world_folder: str
         Path to the world folder
+    dimension: str
+        Current dimension ('overworld', 'nether', or 'end')
     regions: Dict[Tuple[int, int], Region]
         Dictionary of loaded regions, with region coordinates as keys
     _chunk_cache: CacheManager
@@ -27,7 +30,14 @@ class World:
         LRU cache for loaded regions
     """
     
-    def __init__(self, world_folder: str, chunk_cache_size: int = 512, region_cache_size: int = 32):
+    DIMENSIONS = {
+        'overworld': 'region',
+        'nether': 'DIM-1/region',
+        'end': 'DIM1/region'
+    }
+    
+    def __init__(self, world_folder: str, dimension: str = 'overworld', 
+                 chunk_cache_size: int = 512, region_cache_size: int = 32):
         """
         Initialize a World object with caching support.
         
@@ -35,19 +45,31 @@ class World:
         ----------
         world_folder: str
             Path to the world folder
+        dimension: str
+            Dimension to load ('overworld', 'nether', or 'end'). Default: 'overworld'
         chunk_cache_size: int
             Maximum number of chunks to cache (default: 512)
         region_cache_size: int
             Maximum number of regions to keep in memory (default: 32)
+            
+        Example
+        -------
+        >>> world = World(r'C:\\path\\to\\world')  # Overworld
+        >>> nether = World(r'C:\\path\\to\\world', dimension='nether')
+        >>> end = World(r'C:\\path\\to\\world', dimension='end')
         """
+        if dimension not in self.DIMENSIONS:
+            raise ValueError(f"Invalid dimension '{dimension}'. Must be one of: {list(self.DIMENSIONS.keys())}")
+        
         self.world_folder = world_folder
+        self.dimension = dimension
         self.regions: Dict[Tuple[int, int], Union[Region, EmptyRegion]] = {}
         
         # Initialize caches (None disables caching)
         self._chunk_cache = CacheManager(max_size=chunk_cache_size) if chunk_cache_size else None
         self._region_cache = CacheManager(max_size=region_cache_size) if region_cache_size else None
         
-        self.region_dir = os.path.join(world_folder, "region")
+        self.region_dir = os.path.join(world_folder, self.DIMENSIONS[dimension])
         os.makedirs(self.region_dir, exist_ok=True)
     
     def get_region(self, region_x: int, region_z: int) -> Union[Region, EmptyRegion]:
@@ -70,7 +92,6 @@ class World:
         """
         region_coords = (region_x, region_z)
         
-        # Check cache first (if enabled)
         if self._region_cache is not None:
             cached_region = self._region_cache.get(region_coords)
             if cached_region is not None:
@@ -1199,3 +1220,77 @@ class World:
         >>> print(f"Cleared {count} blocks")
         """
         return self.fill_area("minecraft:air", x1, y1, z1, x2, y2, z2)
+    
+    def switch_dimension(self, dimension: str, save_current: bool = True) -> None:
+        """
+        Switch to a different dimension (overworld, nether, or end).
+        
+        Parameters
+        ----------
+        dimension : str
+            Target dimension ('overworld', 'nether', or 'end')
+        save_current : bool
+            Whether to save the current dimension before switching (default: True)
+        
+        Example
+        -------
+        >>> world = World(r'C:\\path\\to\\world')
+        >>> world.switch_dimension('nether')
+        >>> world.switch_dimension('end', save_current=True)
+        """
+        if dimension not in self.DIMENSIONS:
+            raise ValueError(f"Invalid dimension '{dimension}'. Must be one of: {list(self.DIMENSIONS.keys())}")
+        
+        if dimension == self.dimension:
+            return
+        
+        if save_current:
+            self.save()
+        
+        self.regions.clear()
+        if self._chunk_cache:
+            self._chunk_cache.clear()
+        if self._region_cache:
+            self._region_cache.clear()
+        
+        self.dimension = dimension
+        self.region_dir = os.path.join(self.world_folder, self.DIMENSIONS[dimension])
+        os.makedirs(self.region_dir, exist_ok=True)
+    
+    def get_dimension(self) -> str:
+        """
+        Get the current dimension.
+        
+        Returns
+        -------
+        str
+            Current dimension name ('overworld', 'nether', or 'end')
+        
+        Example
+        -------
+        >>> dim = world.get_dimension()
+        >>> print(f"Current dimension: {dim}")
+        """
+        return self.dimension
+    
+    def get_dimension_info(self) -> dict:
+        """
+        Get information about the current dimension.
+        
+        Returns
+        -------
+        dict
+            Dictionary with dimension information
+        
+        Example
+        -------
+        >>> info = world.get_dimension_info()
+        >>> print(f"Dimension: {info['name']}")
+        >>> print(f"Path: {info['path']}")
+        """
+        return {
+            'name': self.dimension,
+            'path': self.DIMENSIONS[self.dimension],
+            'full_path': self.region_dir,
+            'loaded_regions': len(self.regions)
+        }

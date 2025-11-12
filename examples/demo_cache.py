@@ -8,7 +8,7 @@ print("=== Cache Performance Demonstration ===\n")
 print("1. Reading 100 blocks from different chunks")
 print("   WITHOUT cache:")
 world_no_cache = anvil.World(
-    r'C:\Users\zayd2\AppData\Roaming\.minecraft\saves\New World test sde fdp',
+    r'your_path',
     chunk_cache_size=None,  # Disable chunk cache
     region_cache_size=None   # Disable region cache
 )
@@ -25,7 +25,7 @@ print(f"      Average per block: {time_no_cache / 100:.4f}ms\n")
 
 print("   WITH cache:")
 world_with_cache = anvil.World(
-    r'C:\Users\zayd2\AppData\Roaming\.minecraft\saves\New World test sde fdp',
+    r'your_path',
     chunk_cache_size=1024,  # Cache up to 1024 chunks
     region_cache_size=64     # Cache up to 64 regions
 )
@@ -56,7 +56,7 @@ print("=" * 50 + "\n")
 print("2. Repeated access to same chunk (1000 times)")
 print("   WITH cache:")
 world_cached = anvil.World(
-    r'C:\Users\zayd2\AppData\Roaming\.minecraft\saves\New World test sde fdp',
+    r'your_path',
     chunk_cache_size=1024
 )
 
@@ -81,7 +81,7 @@ print(f"      Hit rate: {chunk_stats['hit_rate']}\n")
 print("4. Real-world scenario: Reading 25 different chunks")
 print("   Without cache:")
 world_no_cache2 = anvil.World(
-    r'C:\Users\zayd2\AppData\Roaming\.minecraft\saves\New World test sde fdp',
+    r'your_path',
     chunk_cache_size=None
 )
 start = time.time()
@@ -94,7 +94,7 @@ print(f"      Time: {time_no_cache_multi:.2f}ms\n")
 
 print("   With cache:")
 world_with_cache2 = anvil.World(
-    r'C:\Users\zayd2\AppData\Roaming\.minecraft\saves\New World test sde fdp',
+    r'your_path',
     chunk_cache_size=1024
 )
 start = time.time()

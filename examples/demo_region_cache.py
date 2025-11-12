@@ -7,7 +7,7 @@ print("=== Region Cache Test (Standalone) ===\n")
 # Load a region directly with cache enabled
 print("1. Loading region with cache enabled (64 chunks)")
 region_with_cache = anvil.Region.from_file(
-    r'C:\Users\zayd2\AppData\Roaming\.minecraft\saves\New World test sde fdp\region\r.0.0.mca'
+    r'your_path\region\r.0.0.mca'
 )
 print(f"   Cache enabled: {region_with_cache._chunk_cache is not None}\n")
 
@@ -32,7 +32,7 @@ if stats:
 # Test without cache
 print("4. Loading region WITHOUT cache")
 region_no_cache = anvil.Region.from_file(
-    r'C:\Users\zayd2\AppData\Roaming\.minecraft\saves\New World test sde fdp\region\r.0.0.mca',
+    r'your_path\region\r.0.0.mca',
     cache_size=None  # Disable cache
 )
 print(f"   Cache enabled: {region_no_cache._chunk_cache is not None}\n")
