@@ -98,3 +98,160 @@ spiral = pattern.Spiral(blocks = [anvil.Block('minecraft', 'oak_log'), anvil.Blo
 dictblockspiral = spiral.filled()
 word.apply(dictblockspiral)
 ```
+
+---
+
+# Advanced World Features
+
+The `World` class now includes powerful features for biome management, search, statistics, and area operations.
+
+## Biome Management
+
+```python
+import anvil
+from anvil import Biome
+
+world = anvil.World('./my_world')
+
+biome = world.get_biome(100, 64, 200)
+print(biome.name())  # e.g., "minecraft:plains"
+
+world.set_biome(Biome('desert'), 100, 64, 200)
+
+count = world.replace_biomes(
+    "minecraft:desert", 
+    "minecraft:plains",
+    bounds=(0, 60, 0, 100, 70, 100)
+)
+print(f"Replaced {count} biomes")
+```
+
+## Search and Scan
+
+```python
+positions = world.find_blocks("minecraft:diamond_ore", limit=10)
+for x, y, z in positions:
+    print(f"Diamond ore at ({x}, {y}, {z})")
+
+result = world.find_nearest_block("minecraft:diamond_ore", 100, 64, 200, max_radius=50)
+if result:
+    x, y, z, distance = result
+    print(f"Nearest diamond at ({x}, {y}, {z}), {distance:.2f} blocks away")
+distribution = world.scan_area(0, 60, 0, 16, 70, 16)
+for block_name, count in distribution.items():
+    print(f"{block_name}: {count}")
+```
+
+## World Statistics
+
+```python
+info = world.get_world_info()
+print(f"World folder: {info['world_folder']}")
+print(f"Loaded regions: {info['loaded_regions']}")
+print(f"World size: {info['size_x']} x {info['size_z']}")
+   
+top_blocks = world.get_block_distribution(top_n=10)
+for block_name, count in top_blocks.items():
+    print(f"{block_name}: {count:,}")
+
+height = world.get_height_map(100, 200)
+print(f"Surface at (100, 200): Y={height}")
+
+stone_count = world.count_blocks("minecraft:stone", bounds=(0, 0, 0, 100, 100, 100))
+print(f"Stone blocks: {stone_count:,}")
+```
+
+## 🏗️ Area Operations
+
+```python
+count = world.fill_area("minecraft:stone", 0, 64, 0, 10, 74, 10)
+print(f"Placed {count} blocks")
+
+count = world.copy_area(
+    0, 64, 0, 10, 74, 10,  # Source (from)
+    100, 64, 100            # Destination (to)
+)
+print(f"Copied {count} blocks")
+
+count = world.clear_area(0, 64, 0, 10, 74, 10)
+print(f"Cleared {count} blocks")
+```
+
+## Memory Management
+
+```python
+stats = world.get_memory_usage()
+print(f"Loaded regions: {stats['loaded_regions']}")
+print(f"Cached chunks: {stats['cached_chunks']}")
+
+world.unload_region(0, 0, save=True)
+
+count = world.unload_all_regions(save=True)
+print(f"Unloaded {count} regions")
+world.clear_cache()
+```
+
+## Performance Tips
+
+```python
+world = anvil.World(
+    './my_world',
+    chunk_cache_size=1024,  # Cache up to 1024 chunks
+    region_cache_size=64     # Cache up to 64 regions
+)
+
+world = anvil.World('./my_world', chunk_cache_size=None, region_cache_size=None)
+
+positions = world.find_blocks(
+    "minecraft:diamond_ore",
+    bounds=(0, -64, 0, 100, 20, 100),  # Only search this area
+    limit=10  # Stop after finding 10
+)
+
+for x, y, z, block in world.stream_blocks(0, 0, 0, 1000, 100, 1000):
+    if block.name() == "minecraft:diamond_ore":
+        print(f"Found at ({x}, {y}, {z})")
+```
+
+## Replace Underwater Blocks
+
+Here's a practical example showing how to replace all blocks that are underwater (below water blocks):
+
+```python
+import anvil
+from anvil import Block
+
+world = anvil.World(r'C:\path\to\your\minecraft\world')
+
+area_bounds = (0, -64, 0, 100, 100, 100)
+
+print("Looking for underwater blocks...")
+
+replaced_count = 0
+
+for x, y, z, block in world.stream_blocks(*area_bounds):
+    if block is None:
+        continue
+    
+    current_block_name = block.name()
+    
+    if current_block_name == "minecraft:water":
+        continue
+    
+    block_above = world.get_block(x, y + 1, z)
+    
+    if block_above and block_above.name() == "minecraft:water":
+        world.set_block(Block('minecraft', 'bedrock'), x, y, z)
+        replaced_count += 1
+        if replaced_count <= 10:  
+            print(f"Replaced {current_block_name} with bedrock at ({x}, {y}, {z})")
+
+if replaced_count > 10:
+    print(f"... and {replaced_count - 10} more blocks")
+
+print(f"Replaced {replaced_count} underwater blocks!")
+
+print("Saving world...")
+world.save()
+print("Done!")
+```
