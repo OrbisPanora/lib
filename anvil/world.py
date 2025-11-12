@@ -8,11 +8,12 @@ from .empty_chunk import EmptyChunk
 from .block import Block
 from .biome import Biome
 from .errors import OutOfBoundsCoordinates
+from .cache_manager import CacheManager
 
 
 class World:
     """
-    Represents a Minecraft world, managing multiple regions.
+    Represents a Minecraft world, managing multiple regions with LRU caching.
     
     Attributes
     ----------
@@ -20,26 +21,38 @@ class World:
         Path to the world folder
     regions: Dict[Tuple[int, int], Region]
         Dictionary of loaded regions, with region coordinates as keys
+    _chunk_cache: CacheManager
+        LRU cache for chunks across all regions
+    _region_cache: CacheManager
+        LRU cache for loaded regions
     """
     
-    def __init__(self, world_folder: str):
+    def __init__(self, world_folder: str, chunk_cache_size: int = 512, region_cache_size: int = 32):
         """
-        Initialize a World object.
+        Initialize a World object with caching support.
         
         Parameters
         ----------
         world_folder: str
             Path to the world folder
+        chunk_cache_size: int
+            Maximum number of chunks to cache (default: 512)
+        region_cache_size: int
+            Maximum number of regions to keep in memory (default: 32)
         """
         self.world_folder = world_folder
         self.regions: Dict[Tuple[int, int], Union[Region, EmptyRegion]] = {}
+        
+        # Initialize caches (None disables caching)
+        self._chunk_cache = CacheManager(max_size=chunk_cache_size) if chunk_cache_size else None
+        self._region_cache = CacheManager(max_size=region_cache_size) if region_cache_size else None
         
         self.region_dir = os.path.join(world_folder, "region")
         os.makedirs(self.region_dir, exist_ok=True)
     
     def get_region(self, region_x: int, region_z: int) -> Union[Region, EmptyRegion]:
         """
-        Get a region at the specified coordinates.
+        Get a region at the specified coordinates with caching support.
         If the region doesn't exist in memory, try to load it from disk.
         If it doesn't exist on disk, create a new empty region.
         
@@ -57,22 +70,39 @@ class World:
         """
         region_coords = (region_x, region_z)
         
-        if region_coords in self.regions:
-            return self.regions[region_coords]
+        # Check cache first (if enabled)
+        if self._region_cache is not None:
+            cached_region = self._region_cache.get(region_coords)
+            if cached_region is not None:
+                return cached_region
         
-        region_path = os.path.join(self.region_dir, f"r.{region_x}.{region_z}.mca")
-        if os.path.exists(region_path):
-            region = Region.from_file(region_path)
-            self.regions[region_coords] = region
+        # Check in-memory regions
+        if region_coords in self.regions:
+            region = self.regions[region_coords]
+            if self._region_cache is not None:
+                self._region_cache.put(region_coords, region)
             return region
         
+        # Load from disk
+        region_path = os.path.join(self.region_dir, f"r.{region_x}.{region_z}.mca")
+        if os.path.exists(region_path):
+            # Disable Region's internal cache since World has its own cache
+            region = Region.from_file(region_path, cache_size=None)
+            self.regions[region_coords] = region
+            if self._region_cache is not None:
+                self._region_cache.put(region_coords, region)
+            return region
+        
+        # Create new empty region
         empty_region = EmptyRegion(region_x, region_z)
         self.regions[region_coords] = empty_region
+        if self._region_cache is not None:
+            self._region_cache.put(region_coords, empty_region)
         return empty_region
     
     def get_chunk(self, chunk_x: int, chunk_z: int) -> Union[Chunk, EmptyChunk, None]:
         """
-        Get a chunk at the specified coordinates.
+        Get a chunk at the specified coordinates with caching support.
         
         Parameters
         ----------
@@ -86,20 +116,30 @@ class World:
         Union[Chunk, EmptyChunk, None]
             The chunk at the specified coordinates, or None if not found
         """
+        chunk_key = (chunk_x, chunk_z)
+        if self._chunk_cache is not None:
+            cached_chunk = self._chunk_cache.get(chunk_key)
+            if cached_chunk is not None:
+                return cached_chunk
+        
         region_x = chunk_x >> 5 
         region_z = chunk_z >> 5  
         
         region = self.get_region(region_x, region_z)
         
+        chunk = None
         if isinstance(region, Region):
             try:
-                return region.get_chunk(chunk_x % 32, chunk_z % 32)
+                chunk = region.get_chunk(chunk_x % 32, chunk_z % 32)
             except:
-                return None
+                chunk = None
         elif isinstance(region, EmptyRegion):
-            return region.get_chunk(chunk_x, chunk_z)
+            chunk = region.get_chunk(chunk_x, chunk_z)
         
-        return None
+        if chunk is not None and self._chunk_cache is not None:
+            self._chunk_cache.put(chunk_key, chunk)
+        
+        return chunk
     
     def get_block(self, x: int, y: int, z: int) -> Optional[Block]:
         """
@@ -158,7 +198,7 @@ class World:
                 region_path = os.path.join(self.region_dir, f"r.{region_x}.{region_z}.mca")
                 region.set_block(block, x, y, z, region_path)
             else:
-                region.set_block(block, x, y, z)
+                region.set_block(block, x, y, z) 
         except Exception as e:
             if isinstance(region, Region):
                 empty_region = EmptyRegion(region_x, region_z)
@@ -527,8 +567,57 @@ class World:
             region_path = os.path.join(self.region_dir, f"r.{region_x}.{region_z}.mca")
             
             if isinstance(region, EmptyRegion):
-                # Sauvegarder les EmptyRegion
+                # Save EmptyRegion
                 region.save(region_path)
             elif isinstance(region, Region):
-                # Sauvegarder les Region normales
+                # Save Region
                 region.save(region_path)
+    
+    def clear_cache(self) -> None:
+        """Clear all caches (chunks and regions)."""
+        if self._chunk_cache is not None:
+            self._chunk_cache.clear()
+        if self._region_cache is not None:
+            self._region_cache.clear()
+    
+    def get_cache_stats(self) -> dict:
+        """
+        Get statistics about cache performance.
+        
+        Returns
+        -------
+        dict
+            Dictionary with cache statistics for chunks and regions
+        """
+        return {
+            'chunk_cache': self._chunk_cache.get_stats() if self._chunk_cache else None,
+            'region_cache': self._region_cache.get_stats() if self._region_cache else None
+        }
+    
+    def invalidate_chunk(self, chunk_x: int, chunk_z: int) -> None:
+        """
+        Invalidate a specific chunk in the cache.
+        
+        Parameters
+        ----------
+        chunk_x : int
+            Chunk X coordinate
+        chunk_z : int
+            Chunk Z coordinate
+        """
+        if self._chunk_cache is not None:
+            self._chunk_cache.invalidate((chunk_x, chunk_z))
+    
+    def invalidate_region(self, region_x: int, region_z: int) -> None:
+        """
+        Invalidate a specific region in the cache.
+        
+        Parameters
+        ----------
+        region_x : int
+            Region X coordinate
+        region_z : int
+            Region Z coordinate
+        """
+        if self._region_cache is not None:
+            self._region_cache.invalidate((region_x, region_z))
