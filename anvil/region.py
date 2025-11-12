@@ -430,3 +430,19 @@ class Region:
         """
         if self._chunk_cache is not None:
             self._chunk_cache.invalidate((chunk_x, chunk_z))
+    
+    def save(self, file_path: str) -> None:
+        """
+        Save the region data to a file.
+        
+        Parameters
+        ----------
+        file_path : str
+            Path to the region file to save to
+        
+        Example
+        -------
+        >>> region.save('r.0.0.mca')
+        """
+        with open(file_path, 'wb') as f:
+            f.write(self.data)

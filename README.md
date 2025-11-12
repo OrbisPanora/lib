@@ -255,3 +255,80 @@ print("Saving world...")
 world.save()
 print("Done!")
 ```
+
+## Working with Dimensions
+
+The library supports all three Minecraft dimensions: **Overworld**, **Nether** (DIM-1), and **The End** (DIM1).
+
+### Creating World Instances for Different Dimensions
+
+```python
+import anvil
+from anvil import Block
+
+world_path = r'C:\path\to\your\minecraft\world'
+
+# Overworld (default)
+overworld = anvil.World(world_path)
+# or explicitly
+overworld = anvil.World(world_path, dimension='overworld')
+
+# Nether
+nether = anvil.World(world_path, dimension='nether')
+
+# The End
+end = anvil.World(world_path, dimension='end')
+
+# Work with each dimension independently
+overworld.set_block(Block('minecraft', 'grass_block'), 100, 64, 100)
+nether.set_block(Block('minecraft', 'netherrack'), 100, 64, 100)
+end.set_block(Block('minecraft', 'end_stone'), 100, 64, 100)
+
+# Save each dimension
+overworld.save()
+nether.save()
+end.save()
+```
+
+### Switching Dimensions
+
+```python
+import anvil
+
+world = anvil.World(r'C:\path\to\world', dimension='overworld')
+
+# Get current dimension
+print(f"Current dimension: {world.get_dimension()}")
+
+# Switch to Nether (saves current dimension first)
+world.switch_dimension('nether', save_current=True)
+
+# Get dimension info
+info = world.get_dimension_info()
+print(f"Dimension: {info['name']}")
+print(f"Path: {info['path']}")
+print(f"Loaded regions: {info['loaded_regions']}")
+
+# Switch to The End
+world.switch_dimension('end')
+```
+
+### Nether Portal Coordinates
+
+Nether coordinates are 1/8 of Overworld coordinates (X and Z only):
+
+```python
+# Overworld coordinates
+overworld_x, overworld_z = 800, 800
+
+# Corresponding Nether coordinates
+nether_x = overworld_x // 8  # 100
+nether_z = overworld_z // 8  # 100
+
+# Set portal markers
+overworld = anvil.World(world_path, dimension='overworld')
+nether = anvil.World(world_path, dimension='nether')
+
+overworld.set_block(Block('minecraft', 'obsidian'), overworld_x, 64, overworld_z)
+nether.set_block(Block('minecraft', 'obsidian'), nether_x, 64, nether_z)
+```
