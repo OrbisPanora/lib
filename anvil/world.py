@@ -210,8 +210,8 @@ class World:
         z: int
             Global Z coordinate
         """
-        region_x = x >> 9  # x >> 9  <≡>  x // 512
-        region_z = z >> 9  # z >> 9  <≡>  z // 512
+        region_x = x >> 9  # Divide by 512 (x >> 9 equivalent to x // 512)
+        region_z = z >> 9  # Divide by 512 (z >> 9 equivalent to z // 512)
 
         region = self.get_region(region_x, region_z)
         try:
@@ -219,11 +219,14 @@ class World:
                 region_path = os.path.join(self.region_dir, f"r.{region_x}.{region_z}.mca")
                 region.set_block(block, x, y, z, region_path)
             else:
+                # EmptyRegion handling
                 region.set_block(block, x, y, z) 
         except Exception as e:
+            # If setting block fails on Region, convert to EmptyRegion
             if isinstance(region, Region):
                 empty_region = EmptyRegion(region_x, region_z)
                 
+                # Copy existing chunks to the new empty region
                 for cx in range(32):
                     for cz in range(32):
                         try:
@@ -233,6 +236,7 @@ class World:
                         except:
                             pass
                 
+                # Replace region with empty region and retry
                 self.regions[(region_x, region_z)] = empty_region
                 empty_region.set_block(block, x, y, z)
 

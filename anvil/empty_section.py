@@ -131,11 +131,13 @@ class EmptySection:
         # Create palette index mapping for O(1) lookup
         palette_map = {block: idx for idx, block in enumerate(palette)}
         
+        # Calculate bits per block (minimum 4 bits)
         bits = max((len(palette) - 1).bit_length(), 4)
         states = array.array('Q')
         current = 0
         current_len = 0
         
+        # Pack block indices into longs
         for block in self.blocks:
             if block is None:
                 index = palette_map[self.air]

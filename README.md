@@ -2,13 +2,13 @@
 
 A Python library designed to read, modify, and write **Minecraft world save files** (Anvil and NBT formats). It provides an object-oriented interface for easy access to **chunks, blocks, entities, and biomes**.
 
-## 🔗 Project Origin 
+## Project Origin 
 
 `anvil-parser2` is a **fork** of **0xTiger's anvil-parser**, which itself was originally forked from [matcool's anvil-parser](https://github.com/matcool/anvil-parser). The initial fork by 0xTiger aimed to add support for Minecraft versions **1.18 and above**. Our current version continues this development as the core data layer for a larger project that includes a REST API and a web-based isometric viewer.
 
 ---
 
-# 💡 Usage
+# Usage
 
 ## install OP lib
 
@@ -161,7 +161,7 @@ stone_count = world.count_blocks("minecraft:stone", bounds=(0, 0, 0, 100, 100, 1
 print(f"Stone blocks: {stone_count:,}")
 ```
 
-## 🏗️ Area Operations
+## Area Operations
 
 ```python
 count = world.fill_area("minecraft:stone", 0, 64, 0, 10, 74, 10)

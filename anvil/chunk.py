@@ -677,6 +677,7 @@ class Chunk:
         
         return surface_blocks
 
+    # Block modification methods
     def set_block(self, block: Block, x: int, y: int, z: int) -> None:
         """
         Sets a block at given coordinates in the chunk.
@@ -720,20 +721,22 @@ class Chunk:
         section = nbt.TAG_Compound()
         section.tags.append(nbt.TAG_Byte(name='Y', value=section_y))
         
+        # Create initial palette with air block
         palette = nbt.TAG_List(name='Palette', type=nbt.TAG_Compound)
         air = nbt.TAG_Compound()
         air.tags.append(nbt.TAG_String(name='Name', value='minecraft:air'))
         palette.tags.append(air)
         section.tags.append(palette)
         
-        #Modif par nous
+        # Initialize block states with minimum bit size
         bits = 4
-        total_bits = 4096 * bits
-        states_count = (total_bits + 63) // 64 
+        total_bits = 4096 * bits  # 16x16x16 blocks
+        states_count = (total_bits + 63) // 64  # Number of longs needed
         block_states = nbt.TAG_Long_Array(name='BlockStates')
         block_states.value = [0] * states_count
         section.tags.append(block_states)
         
+        # Add section to the chunk's section list
         if self.version >= VERSION_21w43a:
             if 'sections' not in self.data:
                 sections = nbt.TAG_List(name='sections', type=nbt.TAG_Compound)
@@ -752,6 +755,7 @@ class Chunk:
         """Set block in a section (modern format 1.21.1+)."""
         palette = _palette_from_section(section)
         
+        # Find block in existing palette or add it
         block_index = None
         block_name = block.name()
         for i, palette_block in enumerate(palette):
@@ -761,11 +765,13 @@ class Chunk:
                     block_index = i
                     break
         
+        # Add block to palette if not found
         if block_index is None:
             block_index = len(palette)
             new_block = nbt.TAG_Compound()
             new_block.tags.append(nbt.TAG_String(name='Name', value=block_name))
             
+            # Add properties if block has any
             if block.properties:
                 props = nbt.TAG_Compound()
                 props.name = 'Properties'
@@ -775,6 +781,7 @@ class Chunk:
             
             palette.tags.append(new_block)
     
+        # Get or create block states array
         states = None
         blockstates_tag = None
         
@@ -786,16 +793,18 @@ class Chunk:
                 states = blockstates_tag.value
         elif 'BlockStates' in section:
             blockstates_tag = section['BlockStates']
-            # legacy version (pre 1.13)
+            # Legacy version (pre 1.13)
             if hasattr(blockstates_tag, 'value'):
                 states = blockstates_tag.value
         
+        # Initialize states array if it doesn't exist
         if states is None:
             bits = max((len(palette) - 1).bit_length(), 4)
             total_bits = 4096 * bits
             states_count = (total_bits + 63) // 64 
             states = [0] * states_count
             
+            # Handle different version formats
             if self.version >= VERSION_21w43a:
                 if 'block_states' not in section:
                     block_states_container = nbt.TAG_Compound(name='block_states')
@@ -819,18 +828,21 @@ class Chunk:
         else:
             bits = max((len(palette) - 1).bit_length(), 4)
         
+        # Calculate block position in the states array (YZX order)
         index = y * 256 + z * 16 + x
         
-        # in 1.21.1 blocks don't span longs
+        # In 1.21.1, blocks don't span across multiple longs
         state_idx = index // (64 // bits)
         offset = (index % (64 // bits)) * bits
         
+        # Extend states array if needed
         if state_idx >= len(states):
             states.extend([0] * (state_idx - len(states) + 1))
         
+        # Set the block index in the states array
         mask = (1 << bits) - 1
-        states[state_idx] &= ~(mask << offset)
-        states[state_idx] |= (block_index & mask) << offset
+        states[state_idx] &= ~(mask << offset)  # Clear old value
+        states[state_idx] |= (block_index & mask) << offset  # Set new value
     
     def _props_match(self, nbt_props, block_props: dict) -> bool:
         """Check if properties match."""
@@ -1128,7 +1140,7 @@ class Chunk:
         
         # If palette has only one biome and we're setting to index 0, no data array needed
         if len(palette) == 1 and palette_index == 0:
-            # Remove data array if it exists (optimization)
+            # Remove data array if it exists (optimization for uniform biomes)
             if 'data' in biomes_data:
                 for i, tag in enumerate(biomes_data.tags):
                     if tag.name == 'data':
@@ -1152,7 +1164,7 @@ class Chunk:
         
         # Create data array if it doesn't exist
         if 'data' not in biomes_data:
-            total_bits = 64 * new_bits
+            total_bits = 64 * new_bits  # 64 biome positions (4x4x4 volume)
             states_count = (total_bits + 63) // 64
             data_array = nbt.TAG_Long_Array(name='data')
             # Initialize all positions to 0 (first palette entry)
@@ -1185,7 +1197,7 @@ class Chunk:
             data[state_idx] &= ~(mask << offset)
             data[state_idx] |= (palette_index & mask) << offset
         else:
-            # Value spans two longs
+            # Value spans two longs - split across boundary
             bits_in_first = 64 - offset
             bits_in_second = new_bits - bits_in_first
             
