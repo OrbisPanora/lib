@@ -8,7 +8,7 @@ from pattern import Cube, Pyramid, Spiral, Sphere
 # Initialize world with custom cache sizes (optional)
 # Default: chunk_cache_size=512, region_cache_size=32
 world = anvil.World(
-    r'C:\Users\ssim9\AppData\Roaming\.minecraft\saves\testop2',
+    r'your path',
     chunk_cache_size=1024,  # Cache up to 1024 chunks
     region_cache_size=64     # Cache up to 64 regions
 )
