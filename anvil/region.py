@@ -431,6 +431,46 @@ class Region:
         if self._chunk_cache is not None:
             self._chunk_cache.invalidate((chunk_x, chunk_z))
     
+    def to_dict(self, include_chunks: bool = False) -> dict:
+        """
+        Convert the region to a dictionary for JSON serialization (API-friendly).
+        
+        Parameters
+        ----------
+        include_chunks : bool
+            If True, include list of available chunks (default: False)
+        
+        Returns
+        -------
+        dict
+            Dictionary with region metadata
+            
+        Example
+        -------
+        >>> region = Region.from_file('r.0.0.mca')
+        >>> region.to_dict(include_chunks=True)
+        {'region_x': 0, 'region_z': 0, 'chunks': [[0, 0], [0, 1], ...]}
+        """
+        data = {
+            'region_x': self.region_x if hasattr(self, 'region_x') else None,
+            'region_z': self.region_z if hasattr(self, 'region_z') else None
+        }
+        
+        if include_chunks:
+            chunks_list = []
+            for chunk_x in range(32):
+                for chunk_z in range(32):
+                    try:
+                        chunk = self.get_chunk(chunk_x, chunk_z)
+                        if chunk is not None:
+                            chunks_list.append([chunk_x, chunk_z])
+                    except:
+                        pass
+            data['chunks'] = chunks_list
+            data['chunk_count'] = len(chunks_list)
+        
+        return data
+
     def save(self, file_path: str) -> None:
         """
         Save the region data to a file.
