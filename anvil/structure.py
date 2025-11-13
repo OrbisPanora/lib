@@ -58,23 +58,13 @@ class Structure:
     def generate_in_world(self, world: World, x:int, y:int, z:int):
         for block in self.blocks:
             palette_index = block[1]
+            if not world.is_in_palette_section(self.palette[palette_index], block[0][0], block[0][1], block[0][2]):
+                world.add_block_to_palette(self.palette[palette_index], block[0][0], block[0][1], block[0][2])
+        for block in self.blocks:
+            palette_index = block[1]
             if palette_index >= len(self.palette):
-                print(f"Warning: Invalid palette index {palette_index}, replacing with air at ({block[0][0]+x}, {block[0][1]+y}, {block[0][2]+z})")
-                # Replace invalid blocks with air instead of skipping
                 air_block = Block.from_name("minecraft:air")
                 world.set_block(air_block, block[0][0]+x, block[0][1]+y, block[0][2]+z)
                 continue
             world.set_block(self.palette[palette_index], block[0][0]+x, block[0][1]+y, block[0][2]+z)
         return world
-    
-    def generate_in_chunk(self, chunk: Chunk, y:int):
-        for block in self.blocks:
-            palette_index = block[1]
-            if palette_index >= len(self.palette):
-                print(f"Warning: Invalid palette index {palette_index}, replacing with air at ({block[0][0]}, {block[0][1]+y}, {block[0][2]})")
-                # Replace invalid blocks with air instead of skipping
-                air_block = Block.from_name("minecraft:air")
-                chunk.set_block(air_block, block[0][0], block[0][1]+y, block[0][2])
-                continue
-            chunk.set_block(self.palette[palette_index], block[0][0], block[0][1]+y, block[0][2])
-        return chunk

@@ -532,6 +532,45 @@ class Chunk:
         local_y = y % 16
         self._set_block_in_section(section, block, x, local_y, z)
     
+    def set_palette_in_section(self, section: nbt.TAG_Compound, palette: nbt.TAG_List) -> None:
+        """Set the palette in a section directly."""
+        if self.version >= VERSION_21w43a:
+            if 'block_states' not in section:
+                section.tags.append(nbt.TAG_Compound(name='block_states'))
+            block_states = section['block_states']
+            
+            block_states.tags.append(nbt.TAG_List(name='palette', type=nbt.TAG_Compound))
+            block_states['palette'] = palette
+        else:
+            section.tags.append(nbt.TAG_List(name='Palette', type=nbt.TAG_Compound))
+            section['Palette'] = palette
+
+    def _add_block_to_palette(self, section: nbt.TAG_Compound, block: Block) -> int:
+        """Add a block to the palette and return its index."""
+        block_states = section['block_states']
+        palette = block_states['palette']
+        new_entry = nbt.TAG_Compound()
+        new_entry.tags.append(nbt.TAG_String(name='Name', value=block.name()))
+        if block.properties:
+            props = nbt.TAG_Compound(name='Properties')
+            for k, v in block.properties.items():
+                props.tags.append(nbt.TAG_String(name=k, value=str(v)))
+            new_entry.tags.append(props)
+        palette.tags.append(new_entry)
+        old_bits = max((len(palette) - 2).bit_length(), 4) if len(palette) > 1 else 4
+        new_bits = max((len(palette) - 1).bit_length(), 4)
+        if old_bits != new_bits:
+            self._recalculate_blockstates_bits(section, old_bits, new_bits)
+        return len(palette) - 1
+    
+    def _is_block_in_palette(self, palette: nbt.TAG_List, block: Block) -> bool:
+        """Check if a block is already in the palette."""
+        for entry in palette:
+            if entry.name() == block.name():
+                if self._props_match(entry.properties, block.properties):
+                    return True
+        return False
+    
     def _create_section(self, section_y: int) -> nbt.TAG_Compound:
         """Create a new empty section."""
         section = nbt.TAG_Compound()
@@ -581,6 +620,7 @@ class Chunk:
                 section.tags.append(nbt.TAG_List(name='Palette', type=nbt.TAG_Compound))
             palette = section['Palette']
 
+        print(palette)
         # Find block in palette
         block_name = block.name()
         block_index = None
@@ -589,27 +629,24 @@ class Chunk:
                 if self._props_match(entry.get('Properties'), block.properties):
                     block_index = i
                     break
-
-        # Add to palette if not found
         if block_index is None:
-            block_index = len(palette)
-            new_entry = nbt.TAG_Compound()
-            new_entry.tags.append(nbt.TAG_String(name='Name', value=block_name))
-            if block.properties:
-                props = nbt.TAG_Compound(name='Properties')
-                for k, v in block.properties.items():
-                    props.tags.append(nbt.TAG_String(name=k, value=str(v)))
-                new_entry.tags.append(props)
-            palette.tags.append(new_entry)
+            raise Exception("Block not found in palette")
+        bits = max((len(palette) - 1).bit_length(), 4)
+        if 'data' not in block_states:
+                data = nbt.TAG_Long_Array(name='data')
+                array_size = self._calculate_states_count(bits)
+                print(f"DEBUG: Creating new data array with size {array_size} for {bits} bits")
+                data.value = [0] * array_size
+                block_states.tags.append(data)
+        states = block_states['data'].value
+        self._write_block_index(states, block_index, x, y, z, bits, palette)
 
-        # Calculate bits needed for palette indices
-        old_bits = max((len(palette) - 2).bit_length(), 4) if len(palette) > 1 else 4
-        new_bits = max((len(palette) - 1).bit_length(), 4)
-        
-        print(f"DEBUG: Palette size: {len(palette)}, old_bits: {old_bits}, new_bits: {new_bits}")
+        def _recalculate_blockstates_bits(self, section: nbt.TAG_Compound, old_bits: int, new_bits: int) -> None:
+            """Recalculate the BlockStates array when bits per block changes."""
+            block_states = section['block_states']
+            palette = block_states['palette']
 
-        # Create/get data array
-        if self.version >= VERSION_21w43a:
+            # Create/get data array
             if 'data' not in block_states:
                 data = nbt.TAG_Long_Array(name='data')
                 array_size = self._calculate_states_count(new_bits)
@@ -617,149 +654,132 @@ class Chunk:
                 data.value = [0] * array_size
                 block_states.tags.append(data)
             states = block_states['data'].value
-        else:
-            if 'BlockStates' not in section:
-                data = nbt.TAG_Long_Array(name='BlockStates')
-                array_size = self._calculate_states_count(new_bits)
-                print(f"DEBUG: Creating new BlockStates array with size {array_size} for {new_bits} bits")
-                data.value = [0] * array_size
-                section.tags.append(data)
-            states = section['BlockStates'].value
-            
-        print(f"DEBUG: Current states array size: {len(states)}")
 
-        # If the array size needs to change, resize and rewrite all blocks
-        required_size = self._calculate_states_count(new_bits)
-        if len(states) != required_size:
-            print(f"DEBUG: Resizing states array from {len(states)} to {required_size} (bits: {old_bits}->{new_bits})")
-            
-            # Store current block indices
-            block_indices = []
-            for by in range(16):
-                for bz in range(16):
-                    for bx in range(16):
-                        index = self._get_block_index_from_section(section, bx, by, bz)
-                        if index is not None and index >= len(palette) - 1:
-                            print(f"WARNING: Found invalid index {index} at ({bx},{by},{bz}), using air block")
-                            index = 0
-                        block_indices.append(0 if index is None else index)
-            
-            # Create new array with correct size
-            new_states = [0] * required_size
-            print(f"DEBUG: Created new states array with size {len(new_states)}")
-            
-            # Track blocks before and after for verification
-            blocks_before = {}
-            blocks_after = {}
-            
-            # Store current block arrangement
-            for y in range(16):
-                for z in range(16):
-                    for x in range(16):
-                        index = self._get_block_index_from_section(section, x, y, z)
-                        if index is not None and index < len(palette):
-                            blocks_before[(x,y,z)] = index
-            
-            # Write back all indices with new bit width
-            for i, block_index in enumerate(block_indices):
-                if block_index >= len(palette):
-                    print(f"WARNING: Invalid block_index {block_index} at position {i}, using air block")
-                    block_index = 0
+            # If the array size needs to change, resize and rewrite all blocks
+            required_size = self._calculate_states_count(new_bits)
+            if len(states) != required_size:
+                print(f"DEBUG: Resizing states array from {len(states)} to {required_size} (bits: {old_bits}->{new_bits})")
                 
-                if self.version >= VERSION_20w17a:
-                    long_index = i // (64 // new_bits)
-                    offset = (i % (64 // new_bits)) * new_bits
-                else:
-                    bit_start = i * new_bits
-                    long_index = bit_start // 64
-                    offset = bit_start % 64
+                # Store current block indices
+                block_indices = []
+                for by in range(16):
+                    for bz in range(16):
+                        for bx in range(16):
+                            index = self._get_block_index_from_section(section, bx, by, bz)
+                            if index is not None and index >= len(palette) - 1:
+                                print(f"WARNING: Found invalid index {index} at ({bx},{by},{bz}), using air block")
+                                index = self._get_air_block_index(palette)
+                            block_indices.append(0 if index is None else index)
                 
-                # Calculate x,y,z from index for better debugging
-                y = (i // (16 * 16)) % 16
-                z = (i // 16) % 16
-                x = i % 16
+                # Create new array with correct size
+                new_states = [0] * required_size
+                print(f"DEBUG: Created new states array with size {len(new_states)}")
                 
-                print(f"DEBUG: Writing index {block_index} at ({x},{y},{z}) (long_index={long_index}, offset={offset})")
+                # Track blocks before and after for verification
+                blocks_before = {}
+                blocks_after = {}
                 
-                if long_index >= len(new_states):
-                    print(f"WARNING: long_index {long_index} exceeds array size {len(new_states)}")
-                    continue
+                # Store current block arrangement
+                for y in range(16):
+                    for z in range(16):
+                        for x in range(16):
+                            index = self._get_block_index_from_section(section, x, y, z)
+                            if index is not None and index < len(palette):
+                                blocks_before[(x,y,z)] = index
+                
+                # Write back all indices with new bit width
+                for i, block_index in enumerate(block_indices):
+                    if block_index >= len(palette):
+                        print(f"WARNING: Invalid block_index {block_index} at position {i}, using air block")
+                        block_index = self._get_air_block_index(palette)
                     
-                mask = (1 << new_bits) - 1
-                if offset + new_bits <= 64:
-                    # Simple case: all bits fit in one long
-                    current = new_states[long_index]
-                    current &= ~(mask << offset)
-                    current |= (block_index & mask) << offset
-                    new_states[long_index] = current & ((1 << 64) - 1)
+                    if self.version >= VERSION_20w17a:
+                        long_index = i // (64 // new_bits)
+                        offset = (i % (64 // new_bits)) * new_bits
+                    else:
+                        bit_start = i * new_bits
+                        long_index = bit_start // 64
+                        offset = bit_start % 64
                     
-                    # Verify write
-                    stored = (new_states[long_index] >> offset) & mask
-                    if stored != block_index:
-                        print(f"ERROR: Value mismatch at {i}: wrote {block_index} but read {stored}")
-                else:
-                    # Complex case: bits span two longs
-                    bits_in_first = 64 - offset
-                    bits_in_second = new_bits - bits_in_first
+                    # Calculate x,y,z from index for better debugging
+                    y = (i // (16 * 16)) % 16
+                    z = (i // 16) % 16
+                    x = i % 16
                     
-                    # First long
-                    first_mask = (1 << bits_in_first) - 1
-                    current = new_states[long_index]
-                    current &= ~(first_mask << offset)
-                    current |= (block_index & first_mask) << offset
-                    new_states[long_index] = current & ((1 << 64) - 1)
+                    print(f"DEBUG: Writing index {block_index} at ({x},{y},{z}) (long_index={long_index}, offset={offset})")
                     
-                    # Second long if we have room
-                    if long_index + 1 < len(new_states):
-                        second_mask = (1 << bits_in_second) - 1
-                        current = new_states[long_index + 1]
-                        current &= ~second_mask
-                        current |= (block_index >> bits_in_first) & second_mask
-                        new_states[long_index + 1] = current & ((1 << 64) - 1)
+                    if long_index >= len(new_states):
+                        print(f"WARNING: long_index {long_index} exceeds array size {len(new_states)}")
+                        continue
                         
-                        # Verify spanning write
-                        stored_first = (new_states[long_index] >> offset) & first_mask
-                        stored_second = new_states[long_index + 1] & second_mask
-                        stored = stored_first | (stored_second << bits_in_first)
+                    mask = (1 << new_bits) - 1
+                    if offset + new_bits <= 64:
+                        # Simple case: all bits fit in one long
+                        current = new_states[long_index]
+                        current &= ~(mask << offset)
+                        current |= (block_index & mask) << offset
+                        new_states[long_index] = current & ((1 << 64) - 1)
+                        
+                        # Verify write
+                        stored = (new_states[long_index] >> offset) & mask
                         if stored != block_index:
-                            print(f"ERROR: Spanning value mismatch at {i}: wrote {block_index} but read {stored}")
-            
-            # Update the states array
-            states[:] = new_states
-            
-            # Verify blocks after resize
-            for y in range(16):
-                for z in range(16):
-                    for x in range(16):
-                        index = self._get_block_index_from_section(section, x, y, z)
-                        if index is not None and index < len(palette):
-                            blocks_after[(x,y,z)] = index
-            
-            # Check for any missing or changed blocks
-            for pos, before_index in blocks_before.items():
-                x, y, z = pos
-                after_index = blocks_after.get(pos)
-                if after_index is None:
-                    print(f"WARNING: Block at ({x},{y},{z}) was lost during resize (index {before_index})")
-                elif after_index != before_index:
-                    print(f"WARNING: Block at ({x},{y},{z}) changed from index {before_index} to {after_index}")
-            
-        # Use new_bits for writing the current block
-        bits = new_bits
-
-        # Write the block index
-        self._write_block_index(states, block_index, x, y, z, bits, len(palette))
+                            print(f"ERROR: Value mismatch at {i}: wrote {block_index} but read {stored}")
+                    else:
+                        # Complex case: bits span two longs
+                        bits_in_first = 64 - offset
+                        bits_in_second = new_bits - bits_in_first
+                        
+                        # First long
+                        first_mask = (1 << bits_in_first) - 1
+                        current = new_states[long_index]
+                        current &= ~(first_mask << offset)
+                        current |= (block_index & first_mask) << offset
+                        new_states[long_index] = current & ((1 << 64) - 1)
+                        
+                        # Second long if we have room
+                        if long_index + 1 < len(new_states):
+                            second_mask = (1 << bits_in_second) - 1
+                            current = new_states[long_index + 1]
+                            current &= ~second_mask
+                            current |= (block_index >> bits_in_first) & second_mask
+                            new_states[long_index + 1] = current & ((1 << 64) - 1)
+                            
+                            # Verify spanning write
+                            stored_first = (new_states[long_index] >> offset) & first_mask
+                            stored_second = new_states[long_index + 1] & second_mask
+                            stored = stored_first | (stored_second << bits_in_first)
+                            if stored != block_index:
+                                print(f"ERROR: Spanning value mismatch at {i}: wrote {block_index} but read {stored}")
+                
+                # Update the states array
+                states[:] = new_states
+                
+                # Verify blocks after resize
+                for y in range(16):
+                    for z in range(16):
+                        for x in range(16):
+                            index = self._get_block_index_from_section(section, x, y, z)
+                            if index is not None and index < len(palette):
+                                blocks_after[(x,y,z)] = index
+    
+    def _get_air_block_index(self, palette: nbt.TAG_List) -> int:
+        """Get the index of the air block in the palette, or 0 if not found."""
+        for i, entry in enumerate(palette):
+            if entry['Name'].value == 'minecraft:air':
+                print("air = {i}")
+                return i
+        return 0
 
     # --- Helper function to write a block index safely, handles spanning ---
-    def _write_block_index(self, states, block_index, x, y, z, bits, lenPalette):
+    def _write_block_index(self, states, block_index, x, y, z, bits, palette: nbt.TAG_List) -> None:
         """Write a block index to the states array with proper bounds checking."""
         # Debug check for invalid indices
-        if block_index >= lenPalette:
-            print(f"WARNING: Block index {block_index} at ({x},{y},{z}) exceeds palette size {lenPalette}, forcing to air block (0)")
-            block_index = 0  # Use air block instead of crashing
+        if block_index >= len(palette):
+            print(f"WARNING: Block index {block_index} at ({x},{y},{z}) exceeds palette size {len(palette)}, forcing to air block (0)")
+            block_index = self._get_air_block_index(palette)
         if block_index < 0:
             print(f"WARNING: Block index {block_index} at ({x},{y},{z}) is negative, forcing to air block (0)")
-            block_index = 0  # Use air block instead of crashing
+            block_index = self._get_air_block_index(palette)
         
         # Calculate position in the section using YZX order
         index = y * 16 * 16 + z * 16 + x
