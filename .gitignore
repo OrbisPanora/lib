@@ -45,5 +45,6 @@ Thumbs.db
 *.bak
 *.swp
 *~.nib
+*logs
 examples/aaa
 

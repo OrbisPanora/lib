@@ -261,6 +261,7 @@ class World:
         if section is None:
             raise OutOfBoundsCoordinates("Section does not exist")
         index_palette = chunk._add_block_to_palette(section, block)
+        self.save()
         return index_palette
     
     def set_block(self, block: Block, x: int, y: int, z: int) -> None:
