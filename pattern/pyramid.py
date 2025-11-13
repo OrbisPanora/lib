@@ -1,13 +1,29 @@
+import os
 import anvil
 from random import choice
 import pattern
 
 class Pyramid(pattern.figure.Figure):
+    """
+    Represents a pyramid pattern for block placement.
+    Inherits from Figure and provides methods to generate empty and filled pyramids.
+    """
 
     def __init__(self, blocks : list[anvil.Block], point : tuple[int, int, int], size : tuple[int, int, int]):
+        """
+        Initialize a Pyramid object.
+        """
         super().__init__(blocks, point, size)
 
+
     def empty(self):
+        """
+        Generate a dictionary of blocks for an empty (hollow) pyramid.
+        Returns
+        -------
+        dict
+            Dictionary mapping (x, y, z) to block
+        """
         dictblock = {}
         gx, gy, gz = 0, 0, 0
         height = self.size[1]
@@ -28,6 +44,13 @@ class Pyramid(pattern.figure.Figure):
         return dictblock
 
     def filled(self):
+        """
+        Generate a dictionary of blocks for a filled pyramid.
+        Returns
+        -------
+        dict
+            Dictionary mapping (x, y, z) to block
+        """
         dictblock = {}
         gx, gy, gz = 0, 0, 0
         height = self.size[1]

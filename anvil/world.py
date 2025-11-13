@@ -646,6 +646,27 @@ class World:
         """
         return list(self.regions.keys())
     
+    def apply_figure(self, figure_cls, blocks, point, size, filled=True) -> None:
+        """
+        Create and apply a geometric figure to the world.
+        
+        Parameters
+        ----------
+        figure_cls : class
+            The class of the figure (e.g., Cube, Pyramid, Sphere, Spiral)
+        blocks : list[Block]
+            List of block types to use
+        point : tuple[int, int, int]
+            Starting point (x, y, z)
+        size : tuple[int, int, int]
+            Size of the figure (width, height, depth)
+        filled : bool
+            If True, use filled figure, else use empty (hollow)
+        """
+        figure = figure_cls(blocks, point, size)
+        dictblock = figure.filled() if filled else figure.empty()
+        self.apply(dictblock)
+
     def apply(self, dictionary) -> None:
         """
         Apply the given dictionary of changes to the world.

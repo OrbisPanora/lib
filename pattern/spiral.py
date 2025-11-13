@@ -1,27 +1,52 @@
+import os
 from math import cos, sin
 import anvil
 from random import choice
 import pattern
 
 class Spiral(pattern.figure.Figure):
+    """
+    Represents a spiral pattern for block placement.
+    Inherits from Figure and provides methods to generate empty and filled spirals.
+    """
     def __init__(self, blocks : list[anvil.Block], point : tuple[int, int, int], size : tuple[int, int, int]):
+        """
+        Initialize a Spiral object.
+        """
         super().__init__(blocks, point, size)
 
+    def get_path(self) -> str:
+        """
+        Get the path to the pattern file.
+        Returns
+        -------
+        str
+            Absolute path to this pattern file
+        """
+        return os.path.abspath(__file__)
+
     def empty(self):
+        """
+        Generate a dictionary of blocks for an empty (hollow) spiral.
+        Returns
+        -------
+        dict
+            Dictionary mapping (x, y, z) to block
+        """
         dictblock = {}
         gx, gy, gz = 0, 0, 0
 
         # Spiral parameters
-        r = min(self.size[0], self.size[2]) // 2  # radius based on size
-        k = self.size[1] / (4 * 3.14159)          # vertical rise per radian
+        r = min(self.size[0], self.size[2]) // 2  # Radius based on size
+        k = self.size[1] / (4 * 3.14159)          # Vertical rise per radian
         n_tours = 3
-        step = 5                                 # degrees per step
+        step = 5                                 # Degrees per step
 
         for angle_deg in range(0, 360 * n_tours, step):
-            theta = angle_deg * (3.14159 / 180)  # convert to radians
+            theta = angle_deg * (3.14159 / 180)  # Convert to radians
             x = r * cos(theta)
             z = r * sin(theta)
-            y = k * theta                        # vertical progression
+            y = k * theta                        # Vertical progression
 
             gx = round(x) + self.point[0] + r
             gy = round(y) + self.point[1]
@@ -35,20 +60,27 @@ class Spiral(pattern.figure.Figure):
         return dictblock
 
     def filled(self):
+        """
+        Generate a dictionary of blocks for a filled spiral.
+        Returns
+        -------
+        dict
+            Dictionary mapping (x, y, z) to block
+        """
         dictblock = {}
         gx, gy, gz = 0, 0, 0
 
         # Spiral parameters
-        r = min(self.size[0], self.size[2]) // 2  # radius based on size
-        k = self.size[1] / (4 * 3.14159)          # vertical rise per radian
+        r = min(self.size[0], self.size[2]) // 2  # Radius based on size
+        k = self.size[1] / (4 * 3.14159)          # Vertical rise per radian
         n_tours = 3
-        step = 5                                 # degrees per step
+        step = 5                                 # Degrees per step
 
         for angle_deg in range(0, 360 * n_tours, step):
-            theta = angle_deg * (3.14159 / 180)  # convert to radians
+            theta = angle_deg * (3.14159 / 180)  # Convert to radians
             x = r * cos(theta)
             z = r * sin(theta)
-            y = k * theta                        # vertical progression
+            y = k * theta                        # Vertical progression
 
             gx = round(x) + self.point[0] + r
             gy = round(y) + self.point[1]

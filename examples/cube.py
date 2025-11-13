@@ -14,7 +14,7 @@ world = anvil.World(
 )
 
 ###########################################################################
-############        uncomment to create patterns        ###################
+############        Uncomment to create patterns        ###################
 ###########################################################################
 # # Create a cube pattern
 # cube = Cube(
@@ -70,7 +70,7 @@ world = anvil.World(
 # hollow_cube_blocks = hollow_cube.empty()
 # world.apply(hollow_cube_blocks)
 
-# #create a hollow pyramid pattern
+# #Create a hollow pyramid pattern
 # hollow_pyramid = Pyramid(
 #     blocks=[anvil.Block('minecraft', 'quartz_block')], 
 #     point=(30, 140, 0), 
