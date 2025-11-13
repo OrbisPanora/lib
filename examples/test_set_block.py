@@ -1,45 +1,40 @@
 import _path
 import anvil
 
-# Test simple pour vérifier set_block
-world_path = r'C:\Users\zayd2\AppData\Roaming\.minecraft\saves\New World test sde fdp'
-print(f"📁 Ouverture du monde: {world_path}")
+# Simple test to verify set_block
+world_path = r'your_path'
+print(f"Opening world: {world_path}")
 
 word = anvil.World(world_path)
 
-# Coordonnées de test
+# Test coordinates
 x, y, z = 160, 64, 160
 
-print(f"\n🔍 Test aux coordonnées ({x}, {y}, {z})")
+print(f"\nTesting at coordinates ({x}, {y}, {z})")
 
-# Calculer les coordonnées de région et chunk
+# Calculate region and chunk coordinates
 region_x = x >> 9
 region_z = z >> 9
 chunk_x = x >> 4
 chunk_z = z >> 4
+print(f"Region: ({region_x}, {region_z})")
+print(f"Chunk: ({chunk_x}, {chunk_z})")
 
-print(f"   Région: ({region_x}, {region_z})")
-print(f"   Chunk: ({chunk_x}, {chunk_z})")
-
-# Récupérer la région
+# Get the region
 region = word.get_region(region_x, region_z)
-print(f"   Type de région: {type(region).__name__}")
-
-# Essayer de placer un bloc
-print(f"\n🔨 Placement d'un bloc de glowstone...")
+print(f"Region type: {type(region).__name__}")
+# Try to place a block
+print(f"\nPlacing a glowstone block...")
 block = anvil.Block('minecraft', 'glowstone')
 word.set_block(block, x, y, z)
-
-# Vérifier si le bloc a été placé
-print(f"\n✅ Vérification du bloc placé...")
+# Verify if the block was placed
+print(f"\nVerifying placed block...")
 placed_block = word.get_block(x, y, z)
 if placed_block:
-    print(f"   Bloc trouvé: {placed_block.name()}")
+    print(f"Block found: {placed_block.name()}")
 else:
-    print(f"   ❌ Aucun bloc trouvé!")
-
-# Sauvegarder
-print(f"\n💾 Sauvegarde du monde...")
+    print(f"No block found!")
+# Save
+print(f"\nSaving world...")
 word.save()
-
-print(f"\n✅ Test terminé!")
+print(f"\nTest completed!")

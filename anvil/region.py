@@ -1,4 +1,4 @@
-from typing import Tuple, Union, BinaryIO
+from typing import Tuple, Union, BinaryIO, Optional
 from nbt import nbt
 import zlib
 import os
@@ -6,22 +6,37 @@ from io import BytesIO
 import anvil
 from .errors import GZipChunkData
 from .versions import VERSION_21w43a
+from .cache_manager import CacheManager
 import tempfile
 import gzip
 
 class Region:
     """
-    Region handler for Minecraft worlds
+    Region handler for Minecraft worlds with optional chunk caching
 
     Attributes
     ----------
     data: :class:`bytes`
         Region file (``.mca``) as bytes
+    _chunk_cache: :class:`CacheManager` or None
+        Optional LRU cache for loaded chunks
     """
-    __slots__ = ('data',)
-    def __init__(self, data: bytes):
-        """Makes a Region object from data, which is the region file content"""
+    __slots__ = ('data', '_chunk_cache')
+    
+    def __init__(self, data: bytes, cache_size: Optional[int] = 64):
+        """
+        Makes a Region object from data, which is the region file content
+        
+        Parameters
+        ----------
+        data : bytes
+            Region file content
+        cache_size : Optional[int]
+            Maximum number of chunks to cache. If None, caching is disabled.
+            Default is 64 chunks.
+        """
         self.data = data
+        self._chunk_cache = CacheManager(max_size=cache_size) if cache_size else None
 
     @staticmethod
     def header_offset(chunk_x: int, chunk_z: int) -> int:
@@ -85,9 +100,9 @@ class Region:
         compressed_data = self.data[off + 5 : off + 5 + length] # - 1
         return nbt.NBTFile(buffer=BytesIO(zlib.decompress(compressed_data)))
 
-    def get_chunk(self, chunk_x: int, chunk_z: int) -> 'anvil.Chunk':
+    def get_chunk(self, chunk_x: int, chunk_z: int) -> Optional['anvil.Chunk']:
         """
-        Returns the chunk at given coordinates,
+        Returns the chunk at given coordinates with optional caching,
         same as doing ``Chunk.from_region(region, chunk_x, chunk_z)``
 
         Parameters
@@ -100,7 +115,20 @@ class Region:
         
         :rtype: :class:`anvil.Chunk`
         """
-        return anvil.Chunk.from_region(self, chunk_x, chunk_z)
+        if self._chunk_cache is not None:
+            cache_key = (chunk_x, chunk_z)
+            cached_chunk = self._chunk_cache.get(cache_key)
+            if cached_chunk is not None:
+                return cached_chunk
+        
+        # Load chunk from region file
+        chunk = anvil.Chunk.from_region(self, chunk_x, chunk_z)
+        
+        # Cache the loaded chunk if caching is enabled
+        if self._chunk_cache is not None and chunk is not None:
+            self._chunk_cache.put((chunk_x, chunk_z), chunk)
+        
+        return chunk
 
     def set_block(self, block: 'anvil.Block', x: int, y: int, z: int, file_path: str) -> None:
         """
@@ -126,8 +154,8 @@ class Region:
         local_z = z & 15  
         
         try:
-            # anvil.Chunk.from_region(self, chunk_x, chunk_z)
-            chunk = self.get_chunk(chunk_x % 32, chunk_z % 32) ## faut lui passer file_path
+            # Get chunk from region
+            chunk = self.get_chunk(chunk_x % 32, chunk_z % 32)
             chunk.set_block(block, local_x, y, local_z)
             
             self.save_chunk(chunk, file_path)
@@ -233,7 +261,7 @@ class Region:
             f.write(self.data)
 
     @classmethod
-    def from_file(cls, file: Union[str, BinaryIO]):
+    def from_file(cls, file: Union[str, BinaryIO], cache_size: Optional[int] = 64):
         """
         Creates a new region with the data from reading the given file
 
@@ -241,12 +269,15 @@ class Region:
         ----------
         file
             Either a file path or a file object
+        cache_size : Optional[int]
+            Maximum number of chunks to cache. If None, caching is disabled.
+            Default is 64 chunks.
         """
         if isinstance(file, str):
             with open(file, 'rb') as f:
-                return cls(data=f.read())
+                return cls(data=f.read(), cache_size=cache_size)
         else:
-            return cls(data=file.read())
+            return cls(data=file.read(), cache_size=cache_size)
 
 
     def replace_block_at(self, x: int, y: int, z: int, new_block: Union[str, 'anvil.Block'], file_path: str) -> bool:
@@ -354,22 +385,66 @@ class Region:
             chunks_to_process = chunks
         else:
             raise ValueError("chunks parameter must be a tuple (x, z), a list of tuples, or None")
-
-        # Process each chunk
+    
         for chunk_x, chunk_z in chunks_to_process:
             try:
                 chunk = self.get_chunk(chunk_x % 32, chunk_z % 32)
 
-                # Replace blocks in this chunk
                 count = chunk.replace_blocks(old_block, new_block)
 
                 if count > 0:
-                    # Save the chunk if any blocks were replaced
                     self.save_chunk(chunk, file_path)
                     total_count += count
 
             except Exception:
-                # Skip chunks that can't be loaded or processed
                 continue
 
         return total_count
+    
+    def clear_cache(self) -> None:
+        """Clear the chunk cache if enabled."""
+        if self._chunk_cache is not None:
+            self._chunk_cache.clear()
+    
+    def get_cache_stats(self) -> Optional[dict]:
+        """
+        Get cache statistics.
+        
+        Returns
+        -------
+        Optional[dict]
+            Cache statistics if caching is enabled, None otherwise
+        """
+        if self._chunk_cache is not None:
+            return self._chunk_cache.get_stats()
+        return None
+    
+    def invalidate_chunk(self, chunk_x: int, chunk_z: int) -> None:
+        """
+        Invalidate a specific chunk in the cache.
+        
+        Parameters
+        ----------
+        chunk_x : int
+            Chunk X coordinate
+        chunk_z : int
+            Chunk Z coordinate
+        """
+        if self._chunk_cache is not None:
+            self._chunk_cache.invalidate((chunk_x, chunk_z))
+    
+    def save(self, file_path: str) -> None:
+        """
+        Save the region data to a file.
+        
+        Parameters
+        ----------
+        file_path : str
+            Path to the region file to save to
+        
+        Example
+        -------
+        >>> region.save('r.0.0.mca')
+        """
+        with open(file_path, 'wb') as f:
+            f.write(self.data)
