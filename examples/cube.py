@@ -16,14 +16,15 @@ world = anvil.World(
 ###########################################################################
 ############        Uncomment to create patterns        ###################
 ###########################################################################
-# # Create a cube pattern
-# cube = Cube(
-#     blocks=[anvil.Block('minecraft', 'diamond_block')], 
-#     point=(160, 64, 160), 
-#     size=(5, 5, 5)
-# )
-# cube_blocks = cube.filled()
-# world.apply(cube_blocks)
+###########################################################################
+# Create a cube pattern using apply_figure
+world.apply_figure(
+    Cube,
+    blocks=[anvil.Block('minecraft', 'diamond_block')],
+    point=(160, 64, 160),
+    size=(5, 5, 5),
+    filled=True
+)
 
 # # Create a pyramid pattern
 # pyramid = Pyramid(
