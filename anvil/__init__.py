@@ -7,3 +7,4 @@ from .empty_chunk import EmptyChunk
 from .empty_section import EmptySection
 from .raw_section import RawSection
 from .world import World
+from .structure import Structure

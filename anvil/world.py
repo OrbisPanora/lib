@@ -194,6 +194,75 @@ class World:
             return chunk.get_block(local_x, y, local_z)
         except:
             return None
+    def is_in_palette_section(self, block: Block, x: int, y: int, z:int) -> bool:
+        """
+        Check if a block exists in the palette of the section containing the specified global coordinates.
+        
+        Parameters
+        ----------
+        block: Block
+            The block to check
+        x: int
+            Global X coordinate
+        y: int
+            Global Y coordinate
+        z: int
+            Global Z coordinate
+            
+        Returns
+        -------
+        bool
+            True if the block exists in the palette, False otherwise
+        """
+        chunk_x = x >> 4  
+        chunk_z = z >> 4  
+        
+        chunk = self.get_chunk(chunk_x, chunk_z)
+        if chunk is None:
+            return False
+        
+        section_index = y >> 4  
+        section = chunk.get_section(section_index)
+        if section is None:
+            return False
+        
+        palette = chunk.get_palette(section)
+        return chunk._is_block_in_palette(palette, block)
+    
+    def add_block_to_palette(self, block: Block, x: int, y: int, z: int) -> int:
+        """
+        Add a block to the palette of the section containing the specified global coordinates.
+        
+        Parameters
+        ----------
+        block: Block
+            The block to add
+        x: int
+            Global X coordinate
+        y: int
+            Global Y coordinate
+        z: int
+            Global Z coordinate
+            
+        Returns
+        -------
+        int
+            The index of the block in the palette after adding
+        """
+        chunk_x = x >> 4  
+        chunk_z = z >> 4  
+        
+        chunk = self.get_chunk(chunk_x, chunk_z)
+        if chunk is None:
+            raise OutOfBoundsCoordinates("Chunk does not exist")
+        
+        section_index = y >> 4  
+        section = chunk.get_section(section_index)
+        if section is None:
+            raise OutOfBoundsCoordinates("Section does not exist")
+        index_palette = chunk._add_block_to_palette(section, block)
+        self.save()
+        return index_palette
     
     def set_block(self, block: Block, x: int, y: int, z: int) -> None:
         """
