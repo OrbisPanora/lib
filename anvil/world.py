@@ -1187,7 +1187,7 @@ class World:
         
         return None
     
-    def create_pattern(self, x: int, y: int, z: int, pattern: Structure) -> None:
+    def create_structure(self, x: int, y: int, z: int, pattern: Structure) -> None:
         """
         Create a pattern file from a specified area in the world.
         
