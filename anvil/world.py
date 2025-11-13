@@ -309,6 +309,198 @@ class World:
                 self.regions[(region_x, region_z)] = empty_region
                 empty_region.set_block(block, x, y, z)
 
+    def get_biome(self, x: int, y: int, z: int) -> Optional[Biome]:
+        """
+        Get the biome at the specified global coordinates.
+        
+        Parameters
+        ----------
+        x: int
+            Global X coordinate
+        y: int
+            Global Y coordinate
+        z: int
+            Global Z coordinate
+            
+        Returns
+        -------
+        Optional[Biome]
+            The biome at the specified coordinates, or None if not found
+            
+        Example
+        -------
+        >>> biome = world.get_biome(100, 64, -50)
+        >>> print(biome.name())
+        """
+        chunk_x = x >> 4  
+        chunk_z = z >> 4  
+        
+        chunk = self.get_chunk(chunk_x, chunk_z)
+        if chunk is None:
+            return None
+        
+        local_x = x & 15 
+        local_z = z & 15 
+        
+        try:
+            return chunk.get_biome(local_x, y, local_z)
+        except:
+            return None
+
+    def set_biome(self, biome: Biome, x: int, y: int, z: int) -> None:
+        """
+        Set the biome at the specified global coordinates.
+        This sets the biome for a 4x4x4 volume.
+        
+        Parameters
+        ----------
+        biome: Biome
+            The biome to set
+        x: int
+            Global X coordinate
+        y: int
+            Global Y coordinate
+        z: int
+            Global Z coordinate
+            
+        Example
+        -------
+        >>> from anvil import Biome
+        >>> world.set_biome(Biome.from_name("minecraft:desert"), 100, 64, -50)
+        """
+        chunk_x = x >> 4  
+        chunk_z = z >> 4  
+        
+        chunk = self.get_chunk(chunk_x, chunk_z)
+        if chunk is None:
+            raise OutOfBoundsCoordinates("Chunk does not exist")
+        
+        local_x = x & 15 
+        local_z = z & 15 
+        
+        # EmptyChunk.set_biome() takes only x, z (no y parameter)
+        # while Chunk.set_biome() takes x, y, z
+        if isinstance(chunk, EmptyChunk):
+            chunk.set_biome(biome, local_x, local_z)
+        else:
+            chunk.set_biome(biome, local_x, y, local_z)
+        self.save()
+
+    def set_chunk_biome(self, biome: Biome, chunk_x: int, chunk_z: int) -> None:
+        """
+        Set the entire chunk to a single biome (optimized for uniform biomes).
+        
+        Parameters
+        ----------
+        biome: Biome
+            The biome to set for the entire chunk
+        chunk_x: int
+            Chunk X coordinate
+        chunk_z: int
+            Chunk Z coordinate
+            
+        Example
+        -------
+        >>> from anvil import Biome
+        >>> world.set_chunk_biome(Biome.from_name("minecraft:ice_spikes"), 5, -3)
+        """
+        chunk = self.get_chunk(chunk_x, chunk_z)
+        if chunk is None:
+            raise OutOfBoundsCoordinates("Chunk does not exist")
+        
+        chunk.set_chunk_biome(biome)
+        self.save()
+
+    def set_section_biome(self, biome: Biome, chunk_x: int, chunk_z: int, section_y: int) -> None:
+        """
+        Set an entire section to a single biome within a chunk.
+        
+        Parameters
+        ----------
+        biome: Biome
+            The biome to set for the entire section
+        chunk_x: int
+            Chunk X coordinate
+        chunk_z: int
+            Chunk Z coordinate
+        section_y: int
+            Section Y index (e.g., -4 to 19 for standard world height)
+            
+        Example
+        -------
+        >>> from anvil import Biome
+        >>> world.set_section_biome(Biome.from_name("minecraft:jungle"), 5, -3, 4)
+        """
+        chunk = self.get_chunk(chunk_x, chunk_z)
+        if chunk is None:
+            raise OutOfBoundsCoordinates("Chunk does not exist")
+        
+        section = chunk.get_section(section_y)
+        if section is None:
+            section = chunk._create_section(section_y)
+        
+        biome_name = biome.name()
+        
+        # Create or update biomes structure in section
+        if 'biomes' not in section:
+            from . import nbt
+            biomes_data = nbt.TAG_Compound(name='biomes')
+            palette = nbt.TAG_List(name='palette', type=nbt.TAG_String)
+            palette.tags.append(nbt.TAG_String(value=biome_name))
+            biomes_data.tags.append(palette)
+            section.tags.append(biomes_data)
+        else:
+            biomes_data = section['biomes']
+            palette = biomes_data['palette']
+            
+            # Reset palette to single biome
+            palette.tags.clear()
+            palette.tags.append(nbt.TAG_String(value=biome_name))
+            
+            # Remove data array if present (not needed for uniform biome)
+            biomes_data.tags[:] = [tag for tag in biomes_data.tags if tag.name != 'data']
+        
+        self.save()
+
+    def set_region_biome(self, biome: Biome, region_x: int, region_z: int) -> None:
+        """
+        Set all chunks in a region to a single biome.
+        
+        Parameters
+        ----------
+        biome: Biome
+            The biome to set for the entire region
+        region_x: int
+            Region X coordinate
+        region_z: int
+            Region Z coordinate
+            
+        Example
+        -------
+        >>> from anvil import Biome
+        >>> world.set_region_biome(Biome.from_name("minecraft:plains"), 0, 0)
+        """
+        region = self.get_region(region_x, region_z)
+        
+        # Iterate through all possible chunks in the region
+        for chunk_x in range(32):
+            for chunk_z in range(32):
+                try:
+                    if isinstance(region, Region):
+                        chunk = region.get_chunk(chunk_x, chunk_z)
+                    else:
+                        # Calculate global chunk coordinates for EmptyRegion
+                        global_chunk_x = region_x * 32 + chunk_x
+                        global_chunk_z = region_z * 32 + chunk_z
+                        chunk = region.get_chunk(global_chunk_x, global_chunk_z)
+                    
+                    if chunk is not None:
+                        chunk.set_chunk_biome(biome)
+                except:
+                    continue
+        
+        self.save()
+
     def replace_block_at(self, x: int, y: int, z: int, new_block: Union[str, Block]) -> bool:
         """
         Replace a single block at specific global coordinates.

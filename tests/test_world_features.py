@@ -162,16 +162,15 @@ class TestWorldFeatures(unittest.TestCase):
         self.assertIsInstance(info, dict)
         self.assertIn('world_folder', info)
         self.assertIn('loaded_regions', info)
-        self.assertIn('region_coordinates', info)
         self.assertIn('bounds', info)
-        self.assertIn('size_x', info)
-        self.assertIn('size_z', info)
-        self.assertIn('cache_enabled', info)
+        self.assertIn('dimension', info)
+        self.assertIn('region_dir', info)
+        self.assertIn('cache_stats', info)
         
         self.assertEqual(info['world_folder'], self.world_path)
         self.assertIsInstance(info['loaded_regions'], int)
-        self.assertIsInstance(info['region_coordinates'], list)
-        self.assertTrue(info['cache_enabled'])
+        self.assertIsInstance(info['region_list'], list)
+        self.assertIsInstance(info['cache_stats'], dict)
     
     def test_get_block_distribution(self):
         """Test getting block distribution"""
@@ -335,6 +334,129 @@ class TestWorldFeatures(unittest.TestCase):
         self.assertIsNotNone(region)
 
 
+class TestWorldBiomeFeatures(unittest.TestCase):
+    """Test suite for World class biome manipulation features"""
+    
+    @classmethod
+    def setUpClass(cls):
+        """Set up test world with region file"""
+        cls.test_dir = tempfile.mkdtemp()
+        cls.world_path = os.path.join(cls.test_dir, 'test_world_biomes')
+        os.makedirs(cls.world_path)
+        cls.region_dir = os.path.join(cls.world_path, 'region')
+        os.makedirs(cls.region_dir)
+        
+        # Copy test region file if available
+        test_files_dir = os.path.join(os.path.dirname(__file__), 'world_files')
+        if os.path.exists(test_files_dir):
+            original_file = os.path.join(test_files_dir, 'r.0.0.mca')
+            if os.path.exists(original_file):
+                test_file = os.path.join(cls.region_dir, 'r.0.0.mca')
+                shutil.copy(original_file, test_file)
+                cls.has_test_file = True
+            else:
+                cls.has_test_file = False
+        else:
+            cls.has_test_file = False
+        
+        cls.world = anvil.World(cls.world_path)
+    
+    @classmethod
+    def tearDownClass(cls):
+        """Clean up test world"""
+        shutil.rmtree(cls.test_dir, ignore_errors=True)
+    
+    def test_world_get_biome(self):
+        """Test getting biome via World facade."""
+        if not self.has_test_file:
+            self.skipTest("Test region file not available")
+        
+        # Get biome at coordinates (0, 64, 0) which is in chunk (0, 0) in region (0, 0)
+        biome = self.world.get_biome(0, 64, 0)
+        
+        if biome:
+            self.assertIsInstance(biome, Biome, "Should return a Biome object")
+            self.assertEqual(biome.namespace, "minecraft", "Biome should have minecraft namespace")
+    
+    def test_world_set_biome(self):
+        """Test setting biome via World facade."""
+        if not self.has_test_file:
+            self.skipTest("Test region file not available")
+        
+        # Set biome to desert at coordinates (8, 64, 8)
+        desert = Biome.from_name("minecraft:desert")
+        self.world.set_biome(desert, 8, 64, 8)
+        
+        # Verify by reading back
+        biome_read = self.world.get_biome(8, 64, 8)
+        self.assertIsNotNone(biome_read, "Should be able to read biome after setting")
+        self.assertEqual(biome_read.name(), "minecraft:desert", "Biome should be desert")
+    
+    def test_world_set_chunk_biome(self):
+        """Test setting entire chunk biome via World facade."""
+        if not self.has_test_file:
+            self.skipTest("Test region file not available")
+        
+        # Set entire chunk (0, 0) to ice_spikes
+        ice_spikes = Biome.from_name("minecraft:ice_spikes")
+        self.world.set_chunk_biome(ice_spikes, chunk_x=0, chunk_z=0)
+        
+        # Verify at multiple positions in the chunk
+        for x in [0, 8, 15]:
+            for z in [0, 8, 15]:
+                biome = self.world.get_biome(x, 64, z)
+                self.assertIsNotNone(biome, f"Should be able to read biome at ({x}, 64, {z})")
+                self.assertEqual(biome.name(), "minecraft:ice_spikes", 
+                               f"Biome at ({x}, 64, {z}) should be ice_spikes")
+    
+    def test_world_set_section_biome(self):
+        """Test setting section biome via World facade."""
+        if not self.has_test_file:
+            self.skipTest("Test region file not available")
+        
+        # Set section 4 (y=64-79) in chunk (0, 0) to jungle
+        jungle = Biome.from_name("minecraft:jungle")
+        self.world.set_section_biome(jungle, chunk_x=0, chunk_z=0, section_y=4)
+        
+        # Verify at a position in that section
+        biome = self.world.get_biome(8, 64, 8)
+        self.assertIsNotNone(biome, "Should be able to read biome after setting section")
+        self.assertEqual(biome.name(), "minecraft:jungle", "Biome should be jungle")
+    
+    def test_world_biome_operations_with_cache(self):
+        """Test biome operations work correctly with world caching."""
+        if not self.has_test_file:
+            self.skipTest("Test region file not available")
+        
+        # Create world with caching enabled
+        world_cached = anvil.World(self.world_path, chunk_cache_size=100, region_cache_size=10)
+        
+        # First access - should load from disk
+        biome1 = world_cached.get_biome(8, 64, 8)
+        
+        # Set biome
+        savanna = Biome.from_name("minecraft:savanna")
+        world_cached.set_biome(savanna, 8, 64, 8)
+        
+        # Read back - should use cache
+        biome2 = world_cached.get_biome(8, 64, 8)
+        self.assertIsNotNone(biome2)
+        self.assertEqual(biome2.name(), "minecraft:savanna", "Cached chunk should reflect biome change")
+    
+    def test_biome_from_name(self):
+        """Test creating biomes from names."""
+        desert = Biome.from_name("minecraft:desert")
+        self.assertEqual(desert.namespace, "minecraft")
+        self.assertEqual(desert.id, "desert")
+        self.assertEqual(desert.name(), "minecraft:desert")
+        
+        # Test alternative constructor
+        plains = Biome("plains")
+        self.assertEqual(plains.namespace, "minecraft")
+        self.assertEqual(plains.id, "plains")
+        self.assertEqual(plains.name(), "minecraft:plains")
+
+
 class TestWorldWithoutCache(unittest.TestCase):
     """Test World class with caching disabled"""
     
@@ -362,10 +484,10 @@ class TestWorldWithoutCache(unittest.TestCase):
         self.assertIsNotNone(block)
         self.assertEqual(block.name(), "minecraft:stone")
         
-        info = self.world.get_world_info()
-        self.assertFalse(info['cache_enabled'])
-        self.assertEqual(info['chunk_cache_size'], 0)
-        self.assertEqual(info['region_cache_size'], 0)
+        # Verify cache stats show no cache is active
+        stats = self.world.get_cache_stats()
+        self.assertIsNone(stats['chunk_cache'])
+        self.assertIsNone(stats['region_cache'])
 
 
 if __name__ == '__main__':
