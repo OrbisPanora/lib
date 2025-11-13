@@ -481,6 +481,202 @@ class Chunk:
             for block in self.stream_blocks(section=section):
                 yield block
 
+    def to_dict(self, simplify: bool = True, include_blocks: bool = False) -> dict:
+        """
+        Convert the chunk to a dictionary for JSON serialization (API-friendly).
+        
+        Parameters
+        ----------
+        simplify : bool
+            If True, only return metadata and palette (lightweight)
+            If False, include section details
+        include_blocks : bool
+            If True, include all blocks (very heavy, ~500KB-2MB per chunk)
+            Only used when simplify=False
+        
+        Returns
+        -------
+        dict
+            Dictionary with chunk data in API-friendly format
+            
+        Example
+        -------
+        >>> chunk = region.get_chunk(0, 0)
+        >>> chunk.to_dict(simplify=True)
+        {'x': 0, 'z': 0, 'version': 3465, 'sections': [...]}
+        """
+        data = {
+            'x': self.x,
+            'z': self.z,
+            'version': self.version
+        }
+        
+        if simplify:
+            # Lightweight mode: only palette per section
+            sections_data = []
+            section_range = _section_height_range(self.version)
+            for y in section_range:
+                section = self.get_section(y)
+                if section is not None:
+                    palette = self.get_palette(section)
+                    if palette:
+                        sections_data.append({
+                            'y': y,
+                            'palette': [block.name() for block in palette]
+                        })
+            data['sections'] = sections_data
+        else:
+            # Full mode: detailed section data
+            sections_data = []
+            section_range = _section_height_range(self.version)
+            for y in section_range:
+                section = self.get_section(y)
+                if section is not None:
+                    palette = self.get_palette(section)
+                    if palette:
+                        section_dict = {
+                            'y': y,
+                            'palette': [block.to_dict() for block in palette]
+                        }
+                        
+                        if include_blocks:
+                            # Include all 4096 blocks (very slow!)
+                            blocks_list = []
+                            for local_y in range(16):
+                                for local_z in range(16):
+                                    for local_x in range(16):
+                                        try:
+                                            block = self.get_block(local_x, y * 16 + local_y, local_z)
+                                            if block and block.name() != 'minecraft:air':
+                                                blocks_list.append({
+                                                    'x': local_x,
+                                                    'y': local_y,
+                                                    'z': local_z,
+                                                    'block': block.to_dict()
+                                                })
+                                        except:
+                                            pass
+                            section_dict['blocks'] = blocks_list
+                        
+                        sections_data.append(section_dict)
+            data['sections'] = sections_data
+        
+        return data
+
+    def get_surface_height(self, x: int, z: int) -> int:
+        """
+        Get the Y coordinate of the highest non-air block at given X, Z coordinates.
+        Essential for isometric 2.5D rendering.
+        
+        Parameters
+        ----------
+        x : int
+            X coordinate within chunk (0-15)
+        z : int
+            Z coordinate within chunk (0-15)
+        
+        Returns
+        -------
+        int
+            Y coordinate of the surface block, or -64 if no block found
+            
+        Example
+        -------
+        >>> chunk = region.get_chunk(0, 0)
+        >>> height = chunk.get_surface_height(8, 8)
+        >>> print(f"Surface at Y={height}")
+        """
+        if x not in range(16) or z not in range(16):
+            raise OutOfBoundsCoordinates(f"X and Z must be in range 0-15, got X={x}, Z={z}")
+        
+        section_range = _section_height_range(self.version)
+        for y in range(section_range.stop * 16 - 1, section_range.start * 16 - 1, -1):
+            try:
+                block = self.get_block(x, y, z)
+                if block and block.name() != 'minecraft:air':
+                    return y
+            except:
+                continue
+        
+        return section_range.start * 16  
+
+    def to_heightmap(self) -> list:
+        """
+        Generate a 16x16 heightmap grid for the chunk.
+        Perfect for 2.5D isometric rendering.
+        
+        Returns
+        -------
+        list
+            2D list (16x16) of surface heights
+            
+        Example
+        -------
+        >>> chunk = region.get_chunk(0, 0)
+        >>> heightmap = chunk.to_heightmap()
+        >>> print(heightmap[0][0])  # Height at X=0, Z=0
+        64
+        """
+        heightmap = []
+        for x in range(16):
+            row = []
+            for z in range(16):
+                height = self.get_surface_height(x, z)
+                row.append(height)
+            heightmap.append(row)
+        return heightmap
+
+    def get_surface_blocks(self, include_biome: bool = False) -> list:
+        """
+        Get only the visible surface blocks (top-most non-air blocks).
+        Optimized for isometric rendering - much lighter than full chunk data.
+        
+        Parameters
+        ----------
+        include_biome : bool
+            If True, include biome information for each block
+        
+        Returns
+        -------
+        list
+            List of dictionaries with surface block data
+            
+        Example
+        -------
+        >>> chunk = region.get_chunk(0, 0)
+        >>> surface = chunk.get_surface_blocks(include_biome=True)
+        >>> print(surface[0])
+        {'x': 0, 'y': 64, 'z': 0, 'block': 'minecraft:grass_block', 'biome': 'plains'}
+        """
+        surface_blocks = []
+        
+        for x in range(16):
+            for z in range(16):
+                y = self.get_surface_height(x, z)
+                try:
+                    block = self.get_block(x, y, z)
+                    if block:
+                        block_data = {
+                            'x': x,
+                            'y': y,
+                            'z': z,
+                            'block': block.name()
+                        }
+                        
+                        if include_biome:
+                            try:
+                                biome = self.get_biome(x, y, z)
+                                if biome:
+                                    block_data['biome'] = biome.name()
+                            except:
+                                block_data['biome'] = None
+                        
+                        surface_blocks.append(block_data)
+                except:
+                    continue
+        
+        return surface_blocks
+
     # Block modification methods
     def set_block(self, block: Block, x: int, y: int, z: int) -> None:
         """

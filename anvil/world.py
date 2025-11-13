@@ -1298,3 +1298,196 @@ class World:
             'full_path': self.region_dir,
             'loaded_regions': len(self.regions)
         }
+    
+    def get_chunk_data(self, chunk_x: int, chunk_z: int, mode: str = 'heightmap') -> Optional[dict]:
+        """
+        Get chunk data in different formats optimized for API/viewer consumption.
+        Essential for the isometric viewer.
+        
+        Parameters
+        ----------
+        chunk_x : int
+            Chunk X coordinate
+        chunk_z : int
+            Chunk Z coordinate
+        mode : str
+            Data format mode:
+            - 'heightmap': Only heightmap (lightest, ~1KB)
+            - 'surface': Surface blocks with biomes (~10-50KB)
+            - 'simplified': Palette only (~5KB)
+            - 'full': All chunk data (heaviest, ~500KB-2MB)
+        
+        Returns
+        -------
+        Optional[dict]
+            Chunk data in requested format, or None if chunk not found
+            
+        Example
+        -------
+        >>> data = world.get_chunk_data(0, 0, mode='heightmap')
+        >>> print(data['heightmap'])
+        [[64, 65, 64, ...], ...]
+        """
+        chunk = self.get_chunk(chunk_x, chunk_z)
+        if chunk is None:
+            return None
+        
+        if mode == 'heightmap':
+            return {
+                'chunk_x': chunk_x,
+                'chunk_z': chunk_z,
+                'heightmap': chunk.to_heightmap()
+            }
+        elif mode == 'surface':
+            return {
+                'chunk_x': chunk_x,
+                'chunk_z': chunk_z,
+                'heightmap': chunk.to_heightmap(),
+                'surface_blocks': chunk.get_surface_blocks(include_biome=True)
+            }
+        elif mode == 'simplified':
+            return {
+                'chunk_x': chunk_x,
+                'chunk_z': chunk_z,
+                **chunk.to_dict(simplify=True)
+            }
+        elif mode == 'full':
+            return {
+                'chunk_x': chunk_x,
+                'chunk_z': chunk_z,
+                **chunk.to_dict(simplify=False, include_blocks=True)
+            }
+        else:
+            raise ValueError(f"Invalid mode '{mode}'. Must be 'heightmap', 'surface', 'simplified', or 'full'")
+    
+    def get_area_heightmap(self, x1: int, z1: int, x2: int, z2: int) -> dict:
+        """
+        Get heightmap for an entire area (multiple chunks).
+        Perfect for rendering large portions of the world in the isometric viewer.
+        
+        Parameters
+        ----------
+        x1, z1 : int
+            Minimum coordinates (block coordinates)
+        x2, z2 : int
+            Maximum coordinates (block coordinates)
+        
+        Returns
+        -------
+        dict
+            Dictionary with area heightmap data
+            
+        Example
+        -------
+        >>> heightmap = world.get_area_heightmap(0, 0, 64, 64)
+        >>> print(heightmap['width'], heightmap['height'])
+        65 65
+        """
+        min_x, min_z = min(x1, x2), min(z1, z2)
+        max_x, max_z = max(x1, x2), max(z1, z2)
+        
+        width = max_x - min_x + 1
+        height = max_z - min_z + 1
+        
+        heightmap = []
+        for x in range(min_x, max_x + 1):
+            row = []
+            for z in range(min_z, max_z + 1):
+                chunk_x = x >> 4
+                chunk_z = z >> 4
+                local_x = x & 15
+                local_z = z & 15
+                
+                chunk = self.get_chunk(chunk_x, chunk_z)
+                if chunk:
+                    try:
+                        h = chunk.get_surface_height(local_x, local_z)
+                        row.append(h)
+                    except:
+                        row.append(-64)
+                else:
+                    row.append(-64)
+            heightmap.append(row)
+        
+        return {
+            'x1': min_x,
+            'z1': min_z,
+            'x2': max_x,
+            'z2': max_z,
+            'width': width,
+            'height': height,
+            'heightmap': heightmap
+        }
+    
+    def get_tile_data(self, tile_x: int, tile_z: int, tile_size: int = 16) -> dict:
+        """
+        Get data for a tile-based rendering system.
+        A tile is a square area of chunks (e.g., 16x16 chunks = 256x256 blocks).
+        Optimized for progressive loading in the viewer.
+        
+        Parameters
+        ----------
+        tile_x : int
+            Tile X coordinate
+        tile_z : int
+            Tile Z coordinate
+        tile_size : int
+            Number of chunks per tile side (default: 16)
+        
+        Returns
+        -------
+        dict
+            Dictionary with tile data including all chunks in the tile
+            
+        Example
+        -------
+        >>> tile = world.get_tile_data(0, 0, tile_size=16)
+        >>> print(f"Tile contains {len(tile['chunks'])} chunks")
+        """
+        start_chunk_x = tile_x * tile_size
+        start_chunk_z = tile_z * tile_size
+        
+        chunks_data = []
+        for cx in range(start_chunk_x, start_chunk_x + tile_size):
+            for cz in range(start_chunk_z, start_chunk_z + tile_size):
+                chunk_data = self.get_chunk_data(cx, cz, mode='surface')
+                if chunk_data:
+                    chunks_data.append(chunk_data)
+        
+        return {
+            'tile_x': tile_x,
+            'tile_z': tile_z,
+            'tile_size': tile_size,
+            'start_chunk_x': start_chunk_x,
+            'start_chunk_z': start_chunk_z,
+            'chunks': chunks_data,
+            'chunk_count': len(chunks_data)
+        }
+    
+    def get_world_info(self) -> dict:
+        """
+        Get comprehensive world information for the API/viewer.
+        Includes bounds, dimension, loaded regions, cache stats, etc.
+        
+        Returns
+        -------
+        dict
+            Dictionary with world metadata
+            
+        Example
+        -------
+        >>> info = world.get_world_info()
+        >>> print(f"World dimension: {info['dimension']}")
+        >>> print(f"Bounds: {info['bounds']}")
+        """
+        bounds = self.get_world_bounds()
+        
+        return {
+            'dimension': self.dimension,
+            'world_folder': self.world_folder,
+            'region_dir': self.region_dir,
+            'bounds': bounds,
+            'loaded_regions': len(self.regions),
+            'region_list': self.get_loaded_regions(),
+            'cache_stats': self.get_cache_stats()
+        }
