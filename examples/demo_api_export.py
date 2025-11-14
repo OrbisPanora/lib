@@ -7,6 +7,7 @@ Target: Minecraft 1.21.1
 Purpose: Isometric 2.5D viewer with Angular frontend
 """
 
+import _path
 import json
 import sys
 import os
@@ -14,6 +15,7 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from anvil import World, Region, Block
+from config import WORLD_PATH, validate_world_path
 
 def demo_block_serialization():
     """Demo: Block to_dict() method"""
@@ -201,18 +203,22 @@ def main():
     print("For Isometric Viewer (Angular + Three.js)")
     print("=" * 60 + "\n")
     
-    if len(sys.argv) < 2:
-        print("Usage: python api_export_demo.py <world_path>")
+    # Use command-line argument if provided, otherwise use config
+    if len(sys.argv) >= 2:
+        world_path = sys.argv[1]
+    else:
+        world_path = WORLD_PATH
+    
+    # Validate world path
+    is_valid, message = validate_world_path(world_path)
+    if not is_valid:
+        print(f"Error: {message}")
         print("\nRunning basic demos without world data...")
         demo_block_serialization()
-        print("\n Provide a world path to see full demos:")
-        print("   python api_export_demo.py /path/to/minecraft/world")
-        return
-    
-    world_path = sys.argv[1]
-    
-    if not os.path.exists(world_path):
-        print(f"Error: World path '{world_path}' does not exist!")
+        print("\n⚠ To see full demos:")
+        print("  1. Configure WORLD_PATH in examples/config.py")
+        print("  OR")
+        print("  2. Run: python api_export_demo.py <world_path>")
         return
     
     demo_block_serialization()
