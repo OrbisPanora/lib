@@ -131,11 +131,13 @@ class EmptySection:
         # Create palette index mapping for O(1) lookup
         palette_map = {block: idx for idx, block in enumerate(palette)}
         
+        # Calculate bits per block (minimum 4 bits)
         bits = max((len(palette) - 1).bit_length(), 4)
         states = array.array('Q')
         current = 0
         current_len = 0
         
+        # Pack block indices into longs
         for block in self.blocks:
             if block is None:
                 index = palette_map[self.air]
@@ -153,6 +155,56 @@ class EmptySection:
                 current_len += bits
         states.append(current)
         return states
+
+    def to_dict(self, simplify: bool = True) -> dict:
+        """
+        Convert the section to a dictionary for JSON serialization.
+        
+        Parameters
+        ----------
+        simplify : bool
+            If True, only return palette and Y index (lightweight)
+            If False, return all blocks (heavy, 4096 blocks)
+        
+        Returns
+        -------
+        dict
+            Dictionary with section data in API-friendly format
+            
+        Example
+        -------
+        >>> section = EmptySection(y=4)
+        >>> section.to_dict(simplify=True)
+        {'y': 4, 'palette': ['minecraft:air']}
+        """
+        palette = self.palette()
+        
+        if simplify:
+            return {
+                'y': self.y,
+                'palette': [block.name() for block in palette],
+                'block_count': len([b for b in self.blocks if b is not None])
+            }
+        else:
+            # Full mode: include all blocks (4096 blocks)
+            blocks_data = []
+            for i, block in enumerate(self.blocks):
+                if block is not None:
+                    x = i % 16
+                    y = (i // 16) % 16
+                    z = i // 256
+                    blocks_data.append({
+                        'x': x,
+                        'y': y,
+                        'z': z,
+                        'block': block.to_dict()
+                    })
+            
+            return {
+                'y': self.y,
+                'palette': [block.to_dict() for block in palette],
+                'blocks': blocks_data
+            }
 
     def save(self) -> nbt.TAG_Compound:
         """

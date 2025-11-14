@@ -121,8 +121,10 @@ class Region:
             if cached_chunk is not None:
                 return cached_chunk
         
+        # Load chunk from region file
         chunk = anvil.Chunk.from_region(self, chunk_x, chunk_z)
         
+        # Cache the loaded chunk if caching is enabled
         if self._chunk_cache is not None and chunk is not None:
             self._chunk_cache.put((chunk_x, chunk_z), chunk)
         
@@ -152,8 +154,8 @@ class Region:
         local_z = z & 15  
         
         try:
-            # anvil.Chunk.from_region(self, chunk_x, chunk_z)
-            chunk = self.get_chunk(chunk_x % 32, chunk_z % 32) ## faut lui passer file_path
+            # Get chunk from region
+            chunk = self.get_chunk(chunk_x % 32, chunk_z % 32)
             chunk.set_block(block, local_x, y, local_z)
             
             self.save_chunk(chunk, file_path)
@@ -431,6 +433,46 @@ class Region:
         if self._chunk_cache is not None:
             self._chunk_cache.invalidate((chunk_x, chunk_z))
     
+    def to_dict(self, include_chunks: bool = False) -> dict:
+        """
+        Convert the region to a dictionary for JSON serialization (API-friendly).
+        
+        Parameters
+        ----------
+        include_chunks : bool
+            If True, include list of available chunks (default: False)
+        
+        Returns
+        -------
+        dict
+            Dictionary with region metadata
+            
+        Example
+        -------
+        >>> region = Region.from_file('r.0.0.mca')
+        >>> region.to_dict(include_chunks=True)
+        {'region_x': 0, 'region_z': 0, 'chunks': [[0, 0], [0, 1], ...]}
+        """
+        data = {
+            'region_x': self.region_x if hasattr(self, 'region_x') else None,
+            'region_z': self.region_z if hasattr(self, 'region_z') else None
+        }
+        
+        if include_chunks:
+            chunks_list = []
+            for chunk_x in range(32):
+                for chunk_z in range(32):
+                    try:
+                        chunk = self.get_chunk(chunk_x, chunk_z)
+                        if chunk is not None:
+                            chunks_list.append([chunk_x, chunk_z])
+                    except:
+                        pass
+            data['chunks'] = chunks_list
+            data['chunk_count'] = len(chunks_list)
+        
+        return data
+
     def save(self, file_path: str) -> None:
         """
         Save the region data to a file.

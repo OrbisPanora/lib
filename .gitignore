@@ -1,5 +1,6 @@
 __pycache__/
 textures/
+assets/
 dist/
 build/
 *.egg-info/
@@ -9,6 +10,9 @@ docs/_build/
 examples/test_112.py
 venv/
 *.mca
+*.nbt
+api/
+docs/
 
 # Visual Studio
 .vs/
@@ -44,5 +48,6 @@ Thumbs.db
 *.bak
 *.swp
 *~.nib
+*logs
 examples/aaa
 

@@ -9,7 +9,7 @@ print("1. Loading region with cache enabled (64 chunks)")
 region_with_cache = anvil.Region.from_file(
     r'your_path\region\r.0.0.mca'
 )
-print(f"   Cache enabled: {region_with_cache._chunk_cache is not None}\n")
+print(f"Cache enabled: {region_with_cache._chunk_cache is not None}\n")
 
 # Performance test with cache
 print("2. Performance test - 1000 reads of the same chunk")

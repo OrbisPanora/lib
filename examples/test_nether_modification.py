@@ -5,50 +5,50 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 import anvil
 from anvil import Block
 
-# Chemin vers ta save Minecraft
+# Path to your Minecraft save
 world_path = r'your_path'
 
 print("=" * 60)
-print("TEST: Modification du Nether")
+print("TEST: Nether Modification")
 print("=" * 60)
 
-# Créer une instance World pour le Nether
+# Create a World instance for the Nether
 nether = anvil.World(world_path, dimension='nether')
 
-# Coordonnées du screenshot
+# Target coordinates
 x, y, z = -3, 42, 11
 
-print(f"\nCoordonnées cibles: X={x}, Y={y}, Z={z}")
+print(f"\nTarget coordinates: X={x}, Y={y}, Z={z}")
 print(f"Dimension: {nether.get_dimension()}")
 print(f"Region dir: {nether.region_dir}")
 
-# 1. Lire le bloc actuel
-print(f"\n1. Lecture du bloc actuel à ({x}, {y}, {z})...")
+# 1. Read the current block
+print(f"\n1. Reading current block at ({x}, {y}, {z})...")
 current_block = nether.get_block(x, y, z)
 if current_block:
-    print(f"   Bloc actuel: {current_block.name()}")
+    print(f"Current block: {current_block.name()}")
 else:
-    print("   Aucun bloc trouvé (chunk peut-être non généré)")
+    print("No block found (chunk may not be generated)")
 
-# 2. Placer un bloc de diamant
-print(f"\n2. Placement d'un bloc de diamant à ({x}, {y}, {z})...")
+# 2. Place a diamond block
+print(f"\n2. Placing a diamond block at ({x}, {y}, {z})...")
 nether.set_block(Block('minecraft', 'diamond_block'), x, y, z)
-print("   ✓ Bloc placé")
+print("Block placed")
 
-# 3. Vérifier le placement
-print(f"\n3. Vérification du placement...")
+# 3. Verify the placement
+print(f"\n3. Verifying placement...")
 new_block = nether.get_block(x, y, z)
 if new_block:
-    print(f"   Nouveau bloc: {new_block.name()}")
+    print(f"New block: {new_block.name()}")
     if new_block.name() == 'minecraft:diamond_block':
-        print("   ✓ Succès!")
+        print("Success!")
     else:
-        print("   ⚠ Le bloc n'est pas celui attendu")
+        print("Warning: Block is not the expected one")
 else:
-    print("   ⚠ Impossible de lire le bloc")
+    print("Warning: Cannot read block")
 
-# 4. Placer quelques blocs autour pour tester
-print(f"\n4. Placement de blocs autour...")
+# 4. Place some blocks around for testing
+print(f"\n4. Placing blocks around...")
 blocks_to_place = [
     (x+1, y, z, 'gold_block'),
     (x-1, y, z, 'iron_block'),
@@ -60,28 +60,28 @@ blocks_to_place = [
 
 for bx, by, bz, block_type in blocks_to_place:
     nether.set_block(Block('minecraft', block_type), bx, by, bz)
-    print(f"   Placé {block_type} à ({bx}, {by}, {bz})")
+    print(f"Placed {block_type} at ({bx}, {by}, {bz})")
 
-# 5. Sauvegarder
-print(f"\n5. Sauvegarde du monde...")
+# 5. Save
+print(f"\n5. Saving world...")
 nether.save()
-print("   ✓ Monde sauvegardé")
+print("World saved")
 
-# 6. Afficher les infos
-print(f"\n6. Informations sur la dimension:")
+# 6. Display information
+print(f"\n6. Dimension information:")
 info = nether.get_dimension_info()
-print(f"   Nom: {info['name']}")
-print(f"   Chemin: {info['path']}")
-print(f"   Régions chargées: {info['loaded_regions']}")
+print(f"Name: {info['name']}")
+print(f"Path: {info['path']}")
+print(f"Loaded regions: {info['loaded_regions']}")
 
 print("\n" + "=" * 60)
-print("TEST TERMINÉ")
+print("TEST COMPLETED")
 print("=" * 60)
 print("\nInstructions:")
-print("1. Lance Minecraft")
-print("2. Charge le monde 'New World test sde fdp'")
-print("3. Va dans le Nether")
-print("4. Téléporte-toi aux coordonnées: /tp @s -3 42 11")
-print("5. Tu devrais voir un bloc de diamant et des blocs colorés autour!")
-print("\nCommande de téléportation:")
-print(f"  /tp @s {x} {y} {z}")
+print("1. Launch Minecraft")
+print("2. Load the world 'New World test sde fdp'")
+print("3. Go to the Nether")
+print("4. Teleport to coordinates: /tp @s -3 42 11")
+print("5. You should see a diamond block and colored blocks around it!")
+print("\nTeleport command:")
+print(f"/tp @s {x} {y} {z}")
