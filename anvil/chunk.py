@@ -41,10 +41,21 @@ def _states_from_section(section: nbt.TAG_Compound) -> list:
 
         # makes sure the number is unsigned
         # by adding 2^64
-        # could also use ctypes.c_ulonglong(n).value but that'd require an extra import
 
         return [state if state >= 0 else states + 2 ** 64 
             for state in states.value]
+
+def _calculate_blockstates_size(bits: int) -> int:
+    """Calculate the number of longs needed for the given bits per block.
+    Minecraft requires each Y-level's data to be aligned, with some padding."""
+    # Calculate longs needed for one Y-level (16x16 blocks)
+    bits_per_layer = 16 * 16 * bits
+    base_longs_per_layer = (bits_per_layer + 63) // 64  # ceil division
+    # Add padding (1/16 extra for alignment)
+    padded_longs_per_layer = (base_longs_per_layer * 17 + 15) // 16  # ceil(base * 1.0625)
+    # Multiply by 16 Y-levels
+    total_longs = padded_longs_per_layer * 16
+    return total_longs
 
 
 def _section_height_range(version: Optional[int]) -> range:
@@ -182,7 +193,7 @@ class Chunk:
                 return Biome.from_name(biomes_palette[0].value)
 
 
-            index = ((y % 16 // 4) * 4 * 4) + (z // 4) * 4 + (x // 4)
+            index = ((y % 16) // 4) * 16 + (z // 4) * 4 + (x // 4)
             bits = (len(biomes_palette) - 1).bit_length()
             state = index * bits // 64
             data = biomes[state]
@@ -482,6 +493,655 @@ class Chunk:
             for block in self.stream_blocks(section=section):
                 yield block
 
+    def to_dict(self, simplify: bool = True, include_blocks: bool = False) -> dict:
+        """
+        Convert the chunk to a dictionary for JSON serialization (API-friendly).
+        
+        Parameters
+        ----------
+        simplify : bool
+            If True, only return metadata and palette (lightweight)
+            If False, include section details
+        include_blocks : bool
+            If True, include all blocks (very heavy, ~500KB-2MB per chunk)
+            Only used when simplify=False
+        
+        Returns
+        -------
+        dict
+            Dictionary with chunk data in API-friendly format
+            
+        Example
+        -------
+        >>> chunk = region.get_chunk(0, 0)
+        >>> chunk.to_dict(simplify=True)
+        {'x': 0, 'z': 0, 'version': 3465, 'sections': [...]}
+        """
+        data = {
+            'x': self.x,
+            'z': self.z,
+            'version': self.version
+        }
+        
+        if simplify:
+            # Lightweight mode: only palette per section
+            sections_data = []
+            section_range = _section_height_range(self.version)
+            for y in section_range:
+                section = self.get_section(y)
+                if section is not None:
+                    palette = self.get_palette(section)
+                    if palette:
+                        sections_data.append({
+                            'y': y,
+                            'palette': [block.name() for block in palette]
+                        })
+                        # Add data array with proper conversion
+                        try:
+                            states = _states_from_section(section)
+                            # Convert nbt values to standard Python integers
+                            # and ensure unsigned representation
+                            section_dict['data'] = [
+                                int(state) if state >= 0 else int(state + 2**64) 
+                                for state in states
+                            ]
+                        except (KeyError, AttributeError):
+                            # if there is no data array, set it to empty list
+                            section_dict['data'] = []
+                        
+                        sections_data.append(section_dict)
+            data['sections'] = sections_data
+        else:
+            # Full mode: detailed section data
+            sections_data = []
+            section_range = _section_height_range(self.version)
+            for y in section_range:
+                section = self.get_section(y)
+                if section is not None:
+                    palette = self.get_palette(section)
+                    if palette:
+                        section_dict = {
+                            'y': y,
+                            'palette': [block.to_dict() for block in palette]
+                        }
+                        
+                        if include_blocks:
+                            # Include all 4096 blocks (very slow!)
+                            blocks_list = []
+                            for local_y in range(16):
+                                for local_z in range(16):
+                                    for local_x in range(16):
+                                        try:
+                                            block = self.get_block(local_x, y * 16 + local_y, local_z)
+                                            if block and block.name() != 'minecraft:air':
+                                                blocks_list.append({
+                                                    'x': local_x,
+                                                    'y': local_y,
+                                                    'z': local_z,
+                                                    'block': block.to_dict()
+                                                })
+                                        except:
+                                            pass
+                            section_dict['blocks'] = blocks_list
+                        
+                        sections_data.append(section_dict)
+            data['sections'] = sections_data
+        
+        return data
+
+    def get_surface_height(self, x: int, z: int) -> int:
+        """
+        Get the Y coordinate of the highest non-air block at given X, Z coordinates.
+        Essential for isometric 2.5D rendering.
+        
+        Parameters
+        ----------
+        x : int
+            X coordinate within chunk (0-15)
+        z : int
+            Z coordinate within chunk (0-15)
+        
+        Returns
+        -------
+        int
+            Y coordinate of the surface block, or -64 if no block found
+            
+        Example
+        -------
+        >>> chunk = region.get_chunk(0, 0)
+        >>> height = chunk.get_surface_height(8, 8)
+        >>> print(f"Surface at Y={height}")
+        """
+        if x not in range(16) or z not in range(16):
+            raise OutOfBoundsCoordinates(f"X and Z must be in range 0-15, got X={x}, Z={z}")
+        
+        section_range = _section_height_range(self.version)
+        for y in range(section_range.stop * 16 - 1, section_range.start * 16 - 1, -1):
+            try:
+                block = self.get_block(x, y, z)
+                if block and block.name() != 'minecraft:air':
+                    return y
+            except:
+                continue
+        
+        return section_range.start * 16  
+
+    def to_heightmap(self) -> list:
+        """
+        Generate a 16x16 heightmap grid for the chunk.
+        Perfect for 2.5D isometric rendering.
+        
+        Returns
+        -------
+        list
+            2D list (16x16) of surface heights
+            
+        Example
+        -------
+        >>> chunk = region.get_chunk(0, 0)
+        >>> heightmap = chunk.to_heightmap()
+        >>> print(heightmap[0][0])  # Height at X=0, Z=0
+        64
+        """
+        heightmap = []
+        for x in range(16):
+            row = []
+            for z in range(16):
+                height = self.get_surface_height(x, z)
+                row.append(height)
+            heightmap.append(row)
+        return heightmap
+
+    def get_surface_blocks(self, include_biome: bool = False) -> list:
+        """
+        Get only the visible surface blocks (top-most non-air blocks).
+        Optimized for isometric rendering - much lighter than full chunk data.
+        
+        Parameters
+        ----------
+        include_biome : bool
+            If True, include biome information for each block
+        
+        Returns
+        -------
+        list
+            List of dictionaries with surface block data
+            
+        Example
+        -------
+        >>> chunk = region.get_chunk(0, 0)
+        >>> surface = chunk.get_surface_blocks(include_biome=True)
+        >>> print(surface[0])
+        {'x': 0, 'y': 64, 'z': 0, 'block': 'minecraft:grass_block', 'biome': 'plains'}
+        """
+        surface_blocks = []
+        
+        for x in range(16):
+            for z in range(16):
+                y = self.get_surface_height(x, z)
+                try:
+                    block = self.get_block(x, y, z)
+                    if block:
+                        block_data = {
+                            'x': x,
+                            'y': y,
+                            'z': z,
+                            'block': block.name()
+                        }
+                        
+                        if include_biome:
+                            try:
+                                biome = self.get_biome(x, y, z)
+                                if biome:
+                                    block_data['biome'] = biome.name()
+                            except:
+                                block_data['biome'] = None
+                        
+                        surface_blocks.append(block_data)
+                except:
+                    continue
+        
+        return surface_blocks
+
+    # Block modification methods
+    def set_block(self, block: Block, x: int, y: int, z: int) -> None:
+        """
+        Sets a block at given coordinates in the chunk.
+        Optimized for Minecraft 1.21.1 only.
+        
+        Parameters
+        ----------
+        block : Block
+            The block to set
+        int x, z
+            In range of 0 to 15
+        int y
+            Global Y coordinate
+            
+        Raises
+        ------
+        OutOfBoundsCoordinates
+            If coordinates are out of bounds
+        """
+        # Need Optimisation
+        if not (0 <= x < 16):
+            raise OutOfBoundsCoordinates(f"X ({x!r}) must be in range of 0 to 15")
+        if not (0 <= z < 16):
+            raise OutOfBoundsCoordinates(f"Z ({z!r}) must be in range of 0 to 15")
+        
+        section_range = _section_height_range(self.version)
+        section_y = y // 16
+        if section_y not in section_range:
+            raise OutOfBoundsCoordinates(f"Y ({y!r}) must be in range of "
+                f"{section_range.start * 16} to {section_range.stop * 16 - 1}")
+        
+        section = self.get_section(section_y)
+        if section is None:
+            section = self._create_section(section_y)
+        
+        local_y = y % 16
+        self._set_block_in_section(section, block, x, local_y, z)
+    
+    def set_palette_in_section(self, section: nbt.TAG_Compound, palette: nbt.TAG_List) -> None:
+        """Set the palette in a section directly."""
+        if self.version >= VERSION_21w43a:
+            if 'block_states' not in section:
+                section.tags.append(nbt.TAG_Compound(name='block_states'))
+            block_states = section['block_states']
+            
+            block_states.tags.append(nbt.TAG_List(name='palette', type=nbt.TAG_Compound))
+            block_states['palette'] = palette
+        else:
+            section.tags.append(nbt.TAG_List(name='Palette', type=nbt.TAG_Compound))
+            section['Palette'] = palette
+
+    def _add_block_to_palette(self, section: nbt.TAG_Compound, block: Block) -> int:
+        """Add a block to the palette and return its index."""
+        block_states = section['block_states']
+        palette = block_states['palette']
+        new_entry = nbt.TAG_Compound()
+        new_entry.tags.append(nbt.TAG_String(name='Name', value=block.name()))
+        if block.properties:
+            props = nbt.TAG_Compound(name='Properties')
+            for k, v in block.properties.items():
+                props.tags.append(nbt.TAG_String(name=k, value=str(v)))
+            new_entry.tags.append(props)
+        palette.tags.append(new_entry)
+        old_bits = max((len(palette) - 2).bit_length(), 4) if len(palette) > 1 else 4
+        new_bits = max((len(palette) - 1).bit_length(), 4)
+        if old_bits != new_bits:
+            self._recalculate_blockstates_bits(section, old_bits, new_bits)
+        return len(palette) - 1
+    
+    def _is_block_in_palette(self, palette: nbt.TAG_List, block: Block) -> bool:
+        """Check if a block is already in the palette."""
+        for entry in palette:
+            if entry.name() == block.name():
+                if self._props_match(entry.properties, block.properties):
+                    return True
+        return False
+    
+    def _create_section(self, section_y: int) -> nbt.TAG_Compound:
+        """Create a new empty section."""
+        section = nbt.TAG_Compound()
+        section.tags.append(nbt.TAG_Byte(name='Y', value=section_y))
+        
+        # Create initial palette with air block
+        palette = nbt.TAG_List(name='Palette', type=nbt.TAG_Compound)
+        air = nbt.TAG_Compound()
+        air.tags.append(nbt.TAG_String(name='Name', value='minecraft:air'))
+        palette.tags.append(air)
+        section.tags.append(palette)
+        
+        # Calculate number of longs needed for block storage
+        bits = 4  # Start with minimum 4 bits
+        blocks_per_long = 64 // bits
+        total_blocks = 16 * 16 * 16  # 4096 blocks per section
+        states_count = (total_blocks + blocks_per_long - 1) // blocks_per_long
+        block_states = nbt.TAG_Long_Array(name='BlockStates')
+        block_states.value = [0] * states_count
+        section.tags.append(block_states)
+        
+        # Add section to the chunk's section list
+        if self.version >= VERSION_21w43a:
+            if 'sections' not in self.data:
+                sections = nbt.TAG_List(name='sections', type=nbt.TAG_Compound)
+                self.data.tags.append(sections)
+            self.data['sections'].tags.append(section)
+        else:
+            if 'Sections' not in self.data:
+                sections = nbt.TAG_List(name='Sections', type=nbt.TAG_Compound)
+                self.data.tags.append(sections)
+            self.data['Sections'].tags.append(section)
+        
+        return section
+    
+    def _set_block_in_section(self, section: nbt.TAG_Compound, block: Block, 
+                          x: int, y: int, z: int) -> None:
+        """Set block in a section (modern format 1.21.1+)."""
+        palette = _palette_from_section(section)
+        block_states = section['block_states']
+        
+        # Find block in existing palette or add it
+        block_name = block.name()
+        block_index = None
+        for i, entry in enumerate(palette):
+            if entry['Name'].value == block_name:
+                if self._props_match(entry.get('Properties'), block.properties):
+                    block_index = i
+                    break
+        
+        # Add block in palette if does not exist
+        if block_index is None:
+            block_index = self._add_block_to_palette(section, block)
+            # update block refference after palette change
+            palette = _palette_from_section(section)
+        
+        bits = max((len(palette) - 1).bit_length(), 4)
+        if 'data' not in block_states:
+            data = nbt.TAG_Long_Array(name='data')
+            array_size = self._calculate_states_count(bits)
+            data.value = [0] * array_size
+            block_states.tags.append(data)
+        states = block_states['data'].value
+        self._write_block_index(states, block_index, x, y, z, bits, palette)
+    def _recalculate_blockstates_bits(self, section: nbt.TAG_Compound, old_bits: int, new_bits: int) -> None:
+        """Recalculate the BlockStates array when bits per block changes."""
+        block_states = section['block_states']
+        palette = block_states['palette']
+
+        # Create/get data array
+        if 'data' not in block_states:
+            data = nbt.TAG_Long_Array(name='data')
+            array_size = self._calculate_states_count(new_bits)
+            data.value = [0] * array_size
+            block_states.tags.append(data)
+        states = block_states['data'].value
+
+        # If the array size needs to change, resize and rewrite all blocks
+        required_size = self._calculate_states_count(new_bits)
+        if len(states) != required_size:
+                
+            # Store current block indices
+            block_indices = []
+            for by in range(16):
+                for bz in range(16):
+                    for bx in range(16):
+                        index = self._get_block_index_from_section(section, bx, by, bz)
+                        if index is not None and index >= len(palette) - 1:
+                            index = self._get_air_block_index(palette)
+                        block_indices.append(0 if index is None else index)
+                
+            # Create new array with correct size
+            new_states = [0] * required_size
+                
+            # Track blocks before and after for verification
+            blocks_before = {}
+            blocks_after = {}
+                
+            # Store current block arrangement
+            for y in range(16):
+                for z in range(16):
+                    for x in range(16):
+                        index = self._get_block_index_from_section(section, x, y, z)
+                        if index is not None and index < len(palette):
+                            blocks_before[(x,y,z)] = index
+                
+            # Write back all indices with new bit width
+            for i, block_index in enumerate(block_indices):
+                if block_index >= len(palette):
+                    block_index = self._get_air_block_index(palette)
+                    
+                if self.version >= VERSION_20w17a:
+                    long_index = i // (64 // new_bits)
+                    offset = (i % (64 // new_bits)) * new_bits
+                else:
+                    bit_start = i * new_bits
+                    long_index = bit_start // 64
+                    offset = bit_start % 64
+                    
+                # Calculate x,y,z from index for better debugging
+                y = (i // (16 * 16)) % 16
+                z = (i // 16) % 16
+                x = i % 16
+
+                mask = (1 << new_bits) - 1
+                if offset + new_bits <= 64:
+                    # Simple case: all bits fit in one long
+                    current = new_states[long_index]
+                    current &= ~(mask << offset)
+                    current |= (block_index & mask) << offset
+                    new_states[long_index] = current & ((1 << 64) - 1)
+                    
+                    # Verify write
+                    stored = (new_states[long_index] >> offset) & mask
+                    if stored != block_index:
+                        raise(f"ERROR: Value mismatch at {i}: wrote {block_index} but read {stored}")
+                else:
+                    # Complex case: bits span two longs
+                    bits_in_first = 64 - offset
+                    bits_in_second = new_bits - bits_in_first
+                    
+                    # First long
+                    first_mask = (1 << bits_in_first) - 1
+                    current = new_states[long_index]
+                    current &= ~(first_mask << offset)
+                    current |= (block_index & first_mask) << offset
+                    new_states[long_index] = current & ((1 << 64) - 1)
+                    
+                    # Second long if we have room
+                    if long_index + 1 < len(new_states):
+                        second_mask = (1 << bits_in_second) - 1
+                        current = new_states[long_index + 1]
+                        current &= ~second_mask
+                        current |= (block_index >> bits_in_first) & second_mask
+                        new_states[long_index + 1] = current & ((1 << 64) - 1)
+                        
+                        # Verify spanning write
+                        stored_first = (new_states[long_index] >> offset) & first_mask
+                        stored_second = new_states[long_index + 1] & second_mask
+                        stored = stored_first | (stored_second << bits_in_first)
+                        if stored != block_index:
+                            raise(f"ERROR: Spanning value mismatch at {i}: wrote {block_index} but read {stored}")
+                
+            # Update the states array
+            states[:] = new_states
+            
+            # Verify blocks after resize
+            for y in range(16):
+                for z in range(16):
+                    for x in range(16):
+                        index = self._get_block_index_from_section(section, x, y, z)
+                        if index is not None and index < len(palette):
+                            blocks_after[(x,y,z)] = index
+    
+    def _get_air_block_index(self, palette: nbt.TAG_List) -> int:
+        """Get the index of the air block in the palette, or 0 if not found."""
+        for i, entry in enumerate(palette):
+            if entry['Name'].value == 'minecraft:air':
+                return i
+        return 0
+
+    # --- Helper function to write a block index safely, handles spanning ---
+    def _write_block_index(self, states, block_index, x, y, z, bits, palette: nbt.TAG_List) -> None:
+        """Write a block index to the states array with proper bounds checking."""
+        # Debug check for invalid indices
+        if block_index >= len(palette):
+            block_index = self._get_air_block_index(palette)
+        if block_index < 0:
+            block_index = self._get_air_block_index(palette)
+        
+        # Calculate position in the section using YZX order
+        index = y * 16 * 16 + z * 16 + x
+        
+        # In versions after 20w17a, blocks cannot occupy more than one element in BlockStates
+        if self.version >= VERSION_20w17a:
+            long_index = index // (64 // bits)
+            offset = (index % (64 // bits)) * bits
+        else:
+            bit_start = index * bits
+            long_index = bit_start // 64
+            offset = bit_start % 64
+
+        # Ensure states array has the correct number of longs based on bits
+        required_longs = self._calculate_states_count(bits)
+        if len(states) != required_longs:
+            new_states = [0] * required_longs
+            for i in range(min(len(states), required_longs)):
+                new_states[i] = states[i]
+            states[:] = new_states
+
+        # Create a mask for the full value
+        full_mask = (1 << bits) - 1
+        if (block_index & full_mask) != block_index:
+            raise ValueError(f"Block index {block_index} requires more than {bits} bits")
+
+        if offset + bits <= 64:
+            # Case 1: Block fits in single long
+            current = states[long_index]
+            
+            # Clear the bits at the offset position
+            current &= ~(full_mask << offset)
+            # Insert the new value
+            current |= (block_index << offset)
+            # Store back
+            states[long_index] = current & 0xFFFFFFFFFFFFFFFF
+        
+            
+            # Verify the write
+            verify_mask = full_mask << offset
+            stored_value = (states[long_index] & verify_mask) >> offset
+            if stored_value != block_index:
+                raise ValueError(f"Verification failed! Wrote {block_index} but read back {stored_value}")
+        else:
+            # Case 2: Block spans two longs
+            if long_index + 1 >= len(states):
+                # Handle first long only since we can't span
+                current = states[long_index]
+                bits_in_first = 64 - offset
+                mask_first = (1 << bits_in_first) - 1
+                current &= ~(mask_first << offset)
+                first_bits = block_index & mask_first
+                current |= (first_bits << offset)
+                states[long_index] = current & 0xFFFFFFFFFFFFFFFF
+            else:
+                current = states[long_index]
+                next_long = states[long_index + 1]
+            
+                
+                # Calculate bits in each long
+                bits_in_first = 64 - offset
+                bits_in_second = bits - bits_in_first
+                
+                # Handle first long - preserve existing bits outside our range
+                mask_first = (1 << bits_in_first) - 1
+                current_preserved = current & ~(mask_first << offset)
+                first_bits = block_index & mask_first
+                current = current_preserved | (first_bits << offset)
+                states[long_index] = current & 0xFFFFFFFFFFFFFFFF
+                
+                # Handle second long - preserve existing bits outside our range
+                mask_second = (1 << bits_in_second) - 1
+                next_preserved = next_long & ~mask_second
+                second_bits = (block_index >> bits_in_first) & mask_second
+                next_long = next_preserved | second_bits
+                states[long_index + 1] = next_long & 0xFFFFFFFFFFFFFFFF
+                
+                # Verify the spanning write
+                stored_first = (states[long_index] >> offset) & mask_first
+                stored_second = states[long_index + 1] & mask_second
+                stored_value = stored_first | (stored_second << bits_in_first)
+                if stored_value != block_index:
+                    raise(f"WARNING: Block data verification failed at ({x},{y},{z}): wrote {block_index} but read {stored_value}")
+            
+            # Verify the write
+            stored_first = (states[long_index] >> offset) & mask_first
+            stored_second = states[long_index + 1] & mask_second
+            stored_value = stored_first | (stored_second << bits_in_first)
+            if stored_value != block_index:
+                raise ValueError(f"Verification failed! Wrote {block_index} but read back {stored_value}")
+    def _calculate_states_count(self, bits: int) -> int:
+        """
+        Calculate the number of longs needed to store all blocks in a section.
+        In versions >= 20w17a, each long must contain a whole number of blocks.
+        
+        Parameters
+        ----------
+        bits : int
+            Number of bits per block
+            
+        Returns
+        -------
+        int
+            Number of longs needed to store all blocks
+        """
+        blocks_per_long = 64 // bits  # Integer division - number of complete blocks per long
+        total_blocks = 16 * 16 * 16  # 4096 blocks per section
+        return (total_blocks + blocks_per_long - 1) // blocks_per_long
+
+    def _get_block_index_from_section(self, section: nbt.TAG_Compound, x: int, y: int, z: int) -> int | None:
+        """Return the palette index of the block at (x,y,z) in a section, or None if empty."""
+        if 'block_states' in section:
+            blockstates_tag = section['block_states']
+            data = None
+            if 'data' in blockstates_tag:
+                data = blockstates_tag['data'].value
+            elif hasattr(blockstates_tag, 'value'):
+                data = blockstates_tag.value
+        elif 'BlockStates' in section:
+            blockstates_tag = section['BlockStates']
+            data = getattr(blockstates_tag, 'value', None)
+        else:
+            return None
+
+        if data is None:
+            return None
+
+        palette = _palette_from_section(section)
+        bits = max((len(palette) - 1).bit_length(), 4)
+
+        index = y * 256 + z * 16 + x
+        bit_pos = index * bits
+        long_idx = bit_pos // 64
+        long_off = bit_pos % 64
+
+        if long_idx >= len(data):
+            return None
+
+        mask = (1 << bits) - 1
+        val = (data[long_idx] >> long_off) & mask
+
+        # handle spill
+        spill = long_off + bits - 64
+        if spill > 0 and long_idx + 1 < len(data):
+            val |= (data[long_idx + 1] & ((1 << spill) - 1)) << (bits - spill)
+
+        return val
+
+    
+    def _props_match(self, nbt_props, block_props: dict) -> bool:
+        """Check if properties match."""
+        if not nbt_props and not block_props:
+            return True
+        if not nbt_props or not block_props:
+            return False
+        for k, v in block_props.items():
+            if k not in nbt_props or nbt_props[k].value != str(v):
+                return False
+        return True
+    
+    def save(self, file_path: str) -> None:
+        """
+        Save the modified chunk to a region file.
+        
+        Parameters
+        ----------
+        file_path : str
+            Path to the region file
+        """
+        region = Region.from_file(file_path)
+        region.save_chunk(self, file_path)
+
     def get_tile_entity(self, x: int, y: int, z: int) -> Optional[nbt.TAG_Compound]:
         """
         Returns the tile entity at given coordinates, or ``None`` if there isn't a tile entity
@@ -514,3 +1174,355 @@ class Chunk:
         if nbt_data is None:
             raise ChunkNotFound(f"Could not find chunk ({chunk_x}, {chunk_z})")
         return cls(nbt_data)
+    
+    def replace_block_at(self, x: int, y: int, z: int, new_block: Union[str, Block]) -> bool:
+        """
+        Replace a single block at specific coordinates.
+        
+        Parameters
+        ----------
+        x : int
+            X coordinate (0-15)
+        y : int
+            Global Y coordinate
+        z : int
+            Z coordinate (0-15)
+        new_block : Union[str, Block]
+            The replacement block (either a block name like "minecraft:dirt" or a Block object)
+        
+        Returns
+        -------
+        bool
+            True if the block was replaced, False otherwise
+        
+        Example
+        -------
+        >>> chunk.replace_block_at(5, 64, 10, "minecraft:diamond_block")
+        >>> chunk.replace_block_at(5, 64, 10, Block.from_name("minecraft:stone"))
+        """
+        # Convert string to Block object if needed
+        if isinstance(new_block, str):
+            new_block = Block.from_name(new_block)
+        
+        try:
+            self.set_block(new_block, x, y, z)
+            return True
+        except OutOfBoundsCoordinates:
+            return False
+
+    def replace_blocks(self, old_block: Union[str, Block], new_block: Union[str, Block]) -> int:
+        """
+        Replace all occurrences of a specific block type with another block type in the chunk.
+        
+        Parameters
+        ----------
+        old_block : Union[str, Block]
+            The block to replace (either a block name like "minecraft:stone" or a Block object)
+        new_block : Union[str, Block]
+            The replacement block (either a block name like "minecraft:dirt" or a Block object)
+        
+        Returns
+        -------
+        int
+            The number of blocks replaced
+        
+        Example
+        -------
+        >>> chunk.replace_blocks("minecraft:stone", "minecraft:dirt")
+        >>> chunk.replace_blocks(Block.from_name("minecraft:oak_log"), Block.from_name("minecraft:birch_log"))
+        """
+        # Convert strings to Block objects if needed
+        if isinstance(old_block, str):
+            old_block = Block.from_name(old_block)
+        if isinstance(new_block, str):
+            new_block = Block.from_name(new_block)
+        
+        old_block_name = old_block.name()
+        count = 0
+        
+        section_range = _section_height_range(self.version)
+        
+        for section_y in section_range:
+            section = self.get_section(section_y)
+            if section is None:
+                continue
+            
+            # Iterate through all blocks in the section
+            for local_y in range(16):
+                for z in range(16):
+                    for x in range(16):
+                        # Calculate global Y coordinate
+                        global_y = section_y * 16 + local_y
+                        
+                        try:
+                            current_block = self.get_block(x, global_y, z)
+                            
+                            # Check if block matches (name and properties if specified)
+                            if current_block.name() == old_block_name:
+                                if not old_block.properties or current_block.properties == old_block.properties:
+                                    if self.replace_block_at(x, global_y, z, new_block):
+                                        count += 1
+                        except (IndexError, OutOfBoundsCoordinates):
+                            # Skip blocks that can't be accessed
+                            continue
+        
+        return count
+
+
+    def set_biome(self, biome: Biome, x: int, y: int, z: int) -> None:
+        """
+        Sets the biome at given coordinates in the chunk.
+        For Minecraft 1.21.1 only.
+
+        Parameters
+        ----------
+        biome : Biome
+            The biome to set
+        int x, z
+            In range of 0 to 15
+        int y
+            Global Y coordinate
+
+        Raises
+        ------
+        OutOfBoundsCoordinates
+            If coordinates are out of bounds
+        """
+        if x not in range(16):
+            raise OutOfBoundsCoordinates(f"X ({x!r}) must be in range of 0 to 15")
+        if z not in range(16):
+            raise OutOfBoundsCoordinates(f"Z ({z!r}) must be in range of 0 to 15")
+
+        section_range = _section_height_range(self.version)
+        section_y = y // 16
+        if section_y not in section_range:
+            raise OutOfBoundsCoordinates(f"Y ({y!r}) must be in range of "
+                                         f"{section_range.start * 16} to {section_range.stop * 16 - 1}")
+
+        section = self.get_section(section_y)
+        if section is None:
+            section = self._create_section(section_y)
+
+        if 'biomes' not in section:
+            self._create_biomes_in_section(section)
+
+        biomes_data = section['biomes']
+        palette = biomes_data['palette']
+        biome_name = biome.name()
+
+        # Check if this is a single-biome section without data array
+        if len(palette) == 1 and 'data' not in biomes_data:
+            # If it's already the same biome, nothing to do
+            if palette[0].value == biome_name:
+                return
+            # Otherwise, we need to create a data array to support multiple biomes
+            # Don't just replace the palette entry as that would change the entire section
+
+        # Find or add biome in palette
+        palette_index = None
+        for i, pal_biome in enumerate(palette):
+            if pal_biome.value == biome_name:
+                palette_index = i
+                break
+
+        if palette_index is None:
+            palette_index = len(palette)
+            palette.tags.append(nbt.TAG_String(value=biome_name))
+
+        self._set_biome_in_section_data(biomes_data, palette_index, x, y % 16, z)
+
+
+    def _create_biomes_in_section(self, section: nbt.TAG_Compound) -> None:
+        """Create biomes structure in a section."""
+        biomes = nbt.TAG_Compound(name='biomes')
+        palette = nbt.TAG_List(name='palette', type=nbt.TAG_String)
+        palette.tags.append(nbt.TAG_String(value='minecraft:plains'))
+        biomes.tags.append(palette)
+        section.tags.append(biomes)
+
+
+    def _resize_biome_data_array(self, old_data: list, old_bits: int, new_bits: int) -> list:
+        """
+        Resize the biome data array when palette size changes.
+        Extracts palette indices from old bit size and repackages them with new bit size.
+        """
+        # Extract all 64 palette indices from the old data array
+        indices = []
+        for i in range(64):
+            # Calculate which long and bit offset for old format
+            bit_index = i * old_bits
+            state_idx = bit_index // 64
+            offset = bit_index % 64
+            
+            if state_idx < len(old_data):
+                mask = (1 << old_bits) - 1
+                # Check if the value spans two longs
+                if offset + old_bits <= 64:
+                    palette_idx = (old_data[state_idx] >> offset) & mask
+                else:
+                    # Value spans two longs
+                    bits_in_first = 64 - offset
+                    first_part = (old_data[state_idx] >> offset) & ((1 << bits_in_first) - 1)
+                    if state_idx + 1 < len(old_data):
+                        bits_in_second = old_bits - bits_in_first
+                        second_part = old_data[state_idx + 1] & ((1 << bits_in_second) - 1)
+                        palette_idx = first_part | (second_part << bits_in_first)
+                    else:
+                        palette_idx = first_part
+                indices.append(palette_idx)
+            else:
+                indices.append(0)
+        
+        # Repack indices with new bit size
+        total_bits = 64 * new_bits
+        states_count = (total_bits + 63) // 64
+        new_data = [0] * states_count
+        
+        for i, palette_idx in enumerate(indices):
+            # Calculate which long and bit offset for new format
+            bit_index = i * new_bits
+            state_idx = bit_index // 64
+            offset = bit_index % 64
+            
+            if state_idx < len(new_data):
+                mask = (1 << new_bits) - 1
+                # Check if the value spans two longs
+                if offset + new_bits <= 64:
+                    new_data[state_idx] |= (palette_idx & mask) << offset
+                else:
+                    # Value spans two longs
+                    bits_in_first = 64 - offset
+                    first_part = palette_idx & ((1 << bits_in_first) - 1)
+                    new_data[state_idx] |= first_part << offset
+                    if state_idx + 1 < len(new_data):
+                        bits_in_second = new_bits - bits_in_first
+                        second_part = (palette_idx >> bits_in_first) & ((1 << bits_in_second) - 1)
+                        new_data[state_idx + 1] |= second_part
+        
+        return new_data
+
+
+    def _set_biome_in_section_data(self, biomes_data: nbt.TAG_Compound,
+                                   palette_index: int, x: int, y: int, z: int) -> None:
+        """
+        Set biome index in section data array.
+        
+        Handles palette optimization: when only one biome type exists, removes the data array.
+        When multiple biomes exist, creates/resizes the data array as needed.
+        """
+        palette = biomes_data['palette']
+        
+        # If palette has only one biome and we're setting to index 0, no data array needed
+        if len(palette) == 1 and palette_index == 0:
+            # Remove data array if it exists (optimization for uniform biomes)
+            if 'data' in biomes_data:
+                for i, tag in enumerate(biomes_data.tags):
+                    if tag.name == 'data':
+                        del biomes_data.tags[i]
+                        break
+            return
+        
+        # Calculate position in the biome array (4x4x4 blocks per biome)
+        index = (y // 4) * 16 + (z // 4) * 4 + (x // 4)
+        
+        new_bits = max((len(palette) - 1).bit_length(), 1)
+
+        # Check if we need to resize the data array due to palette growth
+        if 'data' in biomes_data:
+            old_bits = max((len(palette) - 2).bit_length(), 1) if len(palette) > 1 else 1
+            if new_bits != old_bits:
+                # Palette grew and needs more bits, so we need to resize the data array
+                old_data = biomes_data['data'].value
+                new_data = self._resize_biome_data_array(old_data, old_bits, new_bits)
+                biomes_data['data'].value = new_data
+        
+        # Create data array if it doesn't exist
+        if 'data' not in biomes_data:
+            total_bits = 64 * new_bits  # 64 biome positions (4x4x4 volume)
+            states_count = (total_bits + 63) // 64
+            data_array = nbt.TAG_Long_Array(name='data')
+            # Initialize all positions to 0 (first palette entry)
+            data_array.value = [0] * states_count
+            biomes_data.tags.append(data_array)
+
+        data = biomes_data['data'].value
+        
+        # Calculate which long and bit offset
+        bit_index = index * new_bits
+        state_idx = bit_index // 64
+        offset = bit_index % 64
+
+        # Ensure data array is large enough
+        required_size = state_idx + 1
+        if offset + new_bits > 64:
+            required_size = state_idx + 2
+        
+        if len(data) < required_size:
+            # Create new properly sized array
+            new_data = list(data) + [0] * (required_size - len(data))
+            biomes_data['data'].value = new_data
+            data = new_data
+
+        mask = (1 << new_bits) - 1
+        
+        # Check if the value spans two longs
+        if offset + new_bits <= 64:
+            # Value fits in one long
+            data[state_idx] &= ~(mask << offset)
+            data[state_idx] |= (palette_index & mask) << offset
+        else:
+            # Value spans two longs - split across boundary
+            bits_in_first = 64 - offset
+            bits_in_second = new_bits - bits_in_first
+            
+            # Clear and set first part
+            first_mask = (1 << bits_in_first) - 1
+            data[state_idx] &= ~(first_mask << offset)
+            data[state_idx] |= ((palette_index & first_mask) << offset)
+            
+            # Clear and set second part
+            second_mask = (1 << bits_in_second) - 1
+            data[state_idx + 1] &= ~second_mask
+            data[state_idx + 1] |= ((palette_index >> bits_in_first) & second_mask)
+
+    def set_chunk_biome(self, biome: Biome) -> None:
+        """
+        Set the entire chunk to a single biome (optimized for uniform biomes).
+        
+        This method efficiently sets all sections in the chunk to the same biome
+        by creating a minimal palette with a single entry and no data array.
+
+        Parameters
+        ----------
+        biome : Biome
+            The biome to apply to the whole chunk
+            
+        Example
+        -------
+        >>> chunk.set_chunk_biome(Biome.from_name("minecraft:desert"))
+        """
+        biome_name = biome.name()
+        section_range = _section_height_range(self.version)
+        
+        for section_y in section_range:
+            section = self.get_section(section_y)
+            if section is None:
+                section = self._create_section(section_y)
+
+            # Create or get biomes structure
+            if 'biomes' not in section:
+                biomes_data = nbt.TAG_Compound(name='biomes')
+                palette = nbt.TAG_List(name='palette', type=nbt.TAG_String)
+                palette.tags.append(nbt.TAG_String(value=biome_name))
+                biomes_data.tags.append(palette)
+                section.tags.append(biomes_data)
+            else:
+                biomes_data = section['biomes']
+                palette = biomes_data['palette']
+                
+                # Reset palette to single biome
+                palette.tags.clear()
+                palette.tags.append(nbt.TAG_String(value=biome_name))
+                
+                # Remove data array if present (not needed for uniform biome)
+                biomes_data.tags[:] = [tag for tag in biomes_data.tags if tag.name != 'data']

@@ -1,5 +1,6 @@
 __pycache__/
 textures/
+assets/
 dist/
 build/
 *.egg-info/
@@ -7,4 +8,46 @@ build/
 .vscode/
 docs/_build/
 examples/test_112.py
-venv
+venv/
+*.mca
+*.nbt
+api/
+docs/
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.vsidx
+.wsuo
+
+# Python
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+ENV/
+.venv/
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+*.log
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~.nib
+*logs
+examples/aaa
+

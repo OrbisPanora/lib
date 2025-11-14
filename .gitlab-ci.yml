@@ -1,0 +1,51 @@
+workflow:
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - when: never
+
+stages:
+  - test
+  - build
+  - release
+
+test:
+  stage: test
+  image: python:3.9
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install pytest
+    - |
+      if [ -f tests/requirements.txt ]; then pip install -r tests/requirements.txt; fi
+  script:
+    - pytest
+  only:
+    - main
+  when : manual # Remove this when all of the tests are refactored
+
+build_wheel:
+  stage: build
+  image: python:3.9
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install build
+  script:
+    - python -m build --wheel
+  artifacts:
+    paths:
+      - dist/*.whl
+    expire_in: 1 week
+  only:
+    - main
+
+release:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  dependencies:
+    - build_wheel
+  script:
+    - WHEEL_FILE=$(ls dist/*.whl | head -n1 | xargs basename)
+    - VERSION=$(echo "$WHEEL_FILE" | sed -E 's/^[^-]+-([^-]+)-.*$/\1/')
+    - LABEL="orbispanora-parser-${VERSION}.whl"
+    - release-cli create --tag-name "v${VERSION}" --name "Release ${VERSION}" --description "Release ${VERSION} of orbispanora-parser" --assets-link "{\"name\":\"${LABEL}\",\"url\":\"${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_REF_NAME}/raw/dist/${WHEEL_FILE}?job=build_wheel\"}"
+  only:
+    - main

@@ -53,6 +53,28 @@ class Block:
     def __hash__(self):
         return hash(self.name()) ^ hash(frozendict(self.properties))
 
+    def to_dict(self) -> dict:
+        """
+        Convert the block to a dictionary for JSON serialization.
+        
+        Returns
+        -------
+        dict
+            Dictionary with block data in API-friendly format
+            
+        Example
+        -------
+        >>> block = Block.from_name("minecraft:grass_block")
+        >>> block.to_dict()
+        {'name': 'minecraft:grass_block', 'id': 'grass_block', 'namespace': 'minecraft', 'properties': {}}
+        """
+        return {
+            'name': self.name(),
+            'id': self.id,
+            'namespace': self.namespace,
+            'properties': self.properties
+        }
+
     @classmethod
     def from_name(cls, name: str, *args, **kwargs):
         """
@@ -144,3 +166,18 @@ class OldBlock:
 
     def __hash__(self):
         return hash(self.id) ^ hash(self.data)
+
+    def to_dict(self) -> dict:
+        """
+        Convert the old block to a dictionary for JSON serialization.
+        
+        Returns
+        -------
+        dict
+            Dictionary with block data (numeric format)
+        """
+        return {
+            'id': self.id,
+            'data': self.data,
+            'legacy': True
+        }
