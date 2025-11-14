@@ -1,6 +1,6 @@
 workflow:
   rules:
-    - if: '$CI_COMMIT_BRANCH == "master"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
     - when: never
 
 stages:
@@ -19,7 +19,7 @@ test:
   script:
     - pytest
   only:
-    - master
+    - main
   when : manual # Remove this when all of the tests are refactored
 
 build_wheel:
@@ -39,7 +39,7 @@ build_wheel:
       - dist/*.whl
     expire_in: 1 week
   only:
-    - master
+    - main
 
 release:
   stage: release
@@ -52,4 +52,4 @@ release:
     - LABEL="orbispanora-parser-${VERSION}.whl"
     - release-cli create --tag-name "test-release-$CI_PIPELINE_ID" --name "Test Release $CI_PIPELINE_ID" --description "Test Release $CI_PIPELINE_ID from ${CI_COMMIT_REF_NAME} branch." --assets-link "{\"name\":\"${LABEL}\",\"url\":\"${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_REF_NAME}/raw/dist/${WHEEL_FILE}?job=build_wheel\"}"
   only:
-    - master
+    - main
