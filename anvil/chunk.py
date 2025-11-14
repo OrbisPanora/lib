@@ -9,14 +9,47 @@ from .versions import VERSION_21w43a, VERSION_20w17a, VERSION_19w36a, VERSION_17
 
 def bin_append(a, b, length=None):
     """
-    Appends number a to the left of b
-    bin_append(0b1, 0b10) = 0b110
+    Appends number a to the left of b.
+
+    Parameters
+    ----------
+    a : int
+        Number to append on the left
+    b : int
+        Base number
+    length : int, optional
+        Bit length to use for shifting. If None, uses b.bit_length()
+
+    Returns
+    -------
+    int
+        Combined number with a appended to the left of b
+
+    Examples
+    --------
+    >>> bin_append(0b1, 0b10)
+    0b110
     """
     length = length or b.bit_length()
     return (a << length) | b
 
 
 def nibble(byte_array, index):
+    """
+    Extract a nibble (4 bits) from a byte array at given index.
+
+    Parameters
+    ----------
+    byte_array : array-like
+        Array of bytes to extract nibble from
+    index : int
+        Index of the nibble to extract
+
+    Returns
+    -------
+    int
+        The nibble value (0-15)
+    """
     value = byte_array[index // 2]
     if index % 2:
         return value >> 4
@@ -25,6 +58,19 @@ def nibble(byte_array, index):
 
 
 def _palette_from_section(section: nbt.TAG_Compound) -> nbt.TAG_List:
+    """
+    Extract the block palette from a section NBT tag.
+
+    Parameters
+    ----------
+    section : nbt.TAG_Compound
+        The section NBT compound to extract palette from
+
+    Returns
+    -------
+    nbt.TAG_List
+        The palette list containing block definitions
+    """
     if 'block_states' in section:
         return section["block_states"]["palette"]
     else:
@@ -32,22 +78,46 @@ def _palette_from_section(section: nbt.TAG_Compound) -> nbt.TAG_List:
 
 
 def _states_from_section(section: nbt.TAG_Compound) -> list:
-        # BlockStates is an array of 64 bit numbers
-        # that holds the blocks index on the palette list
-        if 'block_states' in section:
-            states = section['block_states']['data']
-        else:
-            states = section['BlockStates']
+    """
+    Extract block states array from a section NBT tag.
 
-        # makes sure the number is unsigned
-        # by adding 2^64
+    BlockStates is an array of 64 bit numbers that holds the blocks index on the palette list.
+    Makes sure the number is unsigned by adding 2^64 if negative.
 
-        return [state if state >= 0 else states + 2 ** 64 
-            for state in states.value]
+    Parameters
+    ----------
+    section : nbt.TAG_Compound
+        The section NBT compound to extract states from
+
+    Returns
+    -------
+    list
+        List of unsigned 64-bit integers representing block states
+    """
+    if 'block_states' in section:
+        states = section['block_states']['data']
+    else:
+        states = section['BlockStates']
+
+    return [state if state >= 0 else states + 2 ** 64
+        for state in states.value]
 
 def _calculate_blockstates_size(bits: int) -> int:
-    """Calculate the number of longs needed for the given bits per block.
-    Minecraft requires each Y-level's data to be aligned, with some padding."""
+    """
+    Calculate the number of longs needed for the given bits per block.
+
+    Minecraft requires each Y-level's data to be aligned, with some padding.
+
+    Parameters
+    ----------
+    bits : int
+        Number of bits per block
+
+    Returns
+    -------
+    int
+        Number of longs needed to store all block states
+    """
     # Calculate longs needed for one Y-level (16x16 blocks)
     bits_per_layer = 16 * 16 * bits
     base_longs_per_layer = (bits_per_layer + 63) // 64  # ceil division
@@ -59,6 +129,20 @@ def _calculate_blockstates_size(bits: int) -> int:
 
 
 def _section_height_range(version: Optional[int]) -> range:
+    """
+    Get the valid section height range for a given Minecraft version.
+
+    Parameters
+    ----------
+    version : int, optional
+        Minecraft data version number
+
+    Returns
+    -------
+    range
+        Range object representing valid section Y indices
+        (range(-4, 20) for modern versions, range(16) for older versions)
+    """
     if version > VERSION_17w47a:
         return range(-4, 20)
     else:
@@ -88,6 +172,14 @@ class Chunk:
     __slots__ = ("version", "data", "x", "z", "tile_entities")
 
     def __init__(self, nbt_data: nbt.NBTFile):
+        """
+        Initialize a Chunk object from NBT data.
+
+        Parameters
+        ----------
+        nbt_data : nbt.NBTFile
+            The NBT data containing chunk information
+        """
         try:
             self.version = nbt_data["DataVersion"].value
         except KeyError:
@@ -729,7 +821,20 @@ class Chunk:
         self._set_block_in_section(section, block, x, local_y, z)
     
     def set_palette_in_section(self, section: nbt.TAG_Compound, palette: nbt.TAG_List) -> None:
-        """Set the palette in a section directly."""
+        """
+        Set the palette in a section directly.
+
+        Parameters
+        ----------
+        section : nbt.TAG_Compound
+            The section to modify
+        palette : nbt.TAG_List
+            The palette list to set
+
+        Returns
+        -------
+        None
+        """
         if self.version >= VERSION_21w43a:
             if 'block_states' not in section:
                 section.tags.append(nbt.TAG_Compound(name='block_states'))
@@ -742,7 +847,21 @@ class Chunk:
             section['Palette'] = palette
 
     def _add_block_to_palette(self, section: nbt.TAG_Compound, block: Block) -> int:
-        """Add a block to the palette and return its index."""
+        """
+        Add a block to the palette and return its index.
+
+        Parameters
+        ----------
+        section : nbt.TAG_Compound
+            The section to add the block to
+        block : Block
+            The block to add to the palette
+
+        Returns
+        -------
+        int
+            The palette index of the newly added block
+        """
         block_states = section['block_states']
         palette = block_states['palette']
         new_entry = nbt.TAG_Compound()
@@ -760,7 +879,21 @@ class Chunk:
         return len(palette) - 1
     
     def _is_block_in_palette(self, palette: nbt.TAG_List, block: Block) -> bool:
-        """Check if a block is already in the palette."""
+        """
+        Check if a block is already in the palette.
+
+        Parameters
+        ----------
+        palette : nbt.TAG_List
+            The palette to search in
+        block : Block
+            The block to search for
+
+        Returns
+        -------
+        bool
+            True if the block is in the palette, False otherwise
+        """
         for entry in palette:
             if entry.name() == block.name():
                 if self._props_match(entry.properties, block.properties):
@@ -768,7 +901,19 @@ class Chunk:
         return False
     
     def _create_section(self, section_y: int) -> nbt.TAG_Compound:
-        """Create a new empty section."""
+        """
+        Create a new empty section.
+
+        Parameters
+        ----------
+        section_y : int
+            The Y index of the section to create
+
+        Returns
+        -------
+        nbt.TAG_Compound
+            The newly created section NBT compound
+        """
         section = nbt.TAG_Compound()
         section.tags.append(nbt.TAG_Byte(name='Y', value=section_y))
         
@@ -804,7 +949,26 @@ class Chunk:
     
     def _set_block_in_section(self, section: nbt.TAG_Compound, block: Block, 
                           x: int, y: int, z: int) -> None:
-        """Set block in a section (modern format 1.21.1+)."""
+        """
+        Set block in a section (modern format 1.21.1+).
+
+        Parameters
+        ----------
+        section : nbt.TAG_Compound
+            The section to modify
+        block : Block
+            The block to set
+        x : int
+            X coordinate within section (0-15)
+        y : int
+            Y coordinate within section (0-15)
+        z : int
+            Z coordinate within section (0-15)
+
+        Returns
+        -------
+        None
+        """
         palette = _palette_from_section(section)
         block_states = section['block_states']
         
@@ -817,10 +981,10 @@ class Chunk:
                     block_index = i
                     break
         
-        # ✅ AJOUT: Si le bloc n'existe pas, l'ajouter à la palette
+        # If the block doesn't exist, add it to the palette
         if block_index is None:
             block_index = self._add_block_to_palette(section, block)
-            # Mettre à jour la référence à la palette après l'ajout
+            # Update the palette reference after adding
             palette = _palette_from_section(section)
         
         bits = max((len(palette) - 1).bit_length(), 4)
@@ -832,7 +996,22 @@ class Chunk:
         states = block_states['data'].value
         self._write_block_index(states, block_index, x, y, z, bits, palette)
     def _recalculate_blockstates_bits(self, section: nbt.TAG_Compound, old_bits: int, new_bits: int) -> None:
-        """Recalculate the BlockStates array when bits per block changes."""
+        """
+        Recalculate the BlockStates array when bits per block changes.
+
+        Parameters
+        ----------
+        section : nbt.TAG_Compound
+            The section to recalculate
+        old_bits : int
+            Previous number of bits per block
+        new_bits : int
+            New number of bits per block
+
+        Returns
+        -------
+        None
+        """
         block_states = section['block_states']
         palette = block_states['palette']
 
@@ -942,15 +1121,51 @@ class Chunk:
                             blocks_after[(x,y,z)] = index
     
     def _get_air_block_index(self, palette: nbt.TAG_List) -> int:
-        """Get the index of the air block in the palette, or 0 if not found."""
+        """
+        Get the index of the air block in the palette, or 0 if not found.
+
+        Parameters
+        ----------
+        palette : nbt.TAG_List
+            The palette to search in
+
+        Returns
+        -------
+        int
+            The index of the air block, or 0 if not found
+        """
         for i, entry in enumerate(palette):
             if entry['Name'].value == 'minecraft:air':
                 return i
         return 0
 
-    # --- Helper function to write a block index safely, handles spanning ---
     def _write_block_index(self, states, block_index, x, y, z, bits, palette: nbt.TAG_List) -> None:
-        """Write a block index to the states array with proper bounds checking."""
+        """
+        Write a block index to the states array with proper bounds checking.
+
+        Handles spanning across multiple longs when necessary.
+
+        Parameters
+        ----------
+        states : list
+            The block states array to modify
+        block_index : int
+            The palette index of the block to write
+        x : int
+            X coordinate within section (0-15)
+        y : int
+            Y coordinate within section (0-15)
+        z : int
+            Z coordinate within section (0-15)
+        bits : int
+            Number of bits per block
+        palette : nbt.TAG_List
+            The palette list for validation
+
+        Returns
+        -------
+        None
+        """
         # Debug check for invalid indices
         if block_index >= len(palette):
             block_index = self._get_air_block_index(palette)
@@ -1066,7 +1281,25 @@ class Chunk:
         return (total_blocks + blocks_per_long - 1) // blocks_per_long
 
     def _get_block_index_from_section(self, section: nbt.TAG_Compound, x: int, y: int, z: int) -> int | None:
-        """Return the palette index of the block at (x,y,z) in a section, or None if empty."""
+        """
+        Return the palette index of the block at (x,y,z) in a section, or None if empty.
+
+        Parameters
+        ----------
+        section : nbt.TAG_Compound
+            The section to read from
+        x : int
+            X coordinate within section (0-15)
+        y : int
+            Y coordinate within section (0-15)
+        z : int
+            Z coordinate within section (0-15)
+
+        Returns
+        -------
+        int or None
+            The palette index of the block, or None if section is empty
+        """
         if 'block_states' in section:
             blockstates_tag = section['block_states']
             data = None
@@ -1106,7 +1339,21 @@ class Chunk:
 
     
     def _props_match(self, nbt_props, block_props: dict) -> bool:
-        """Check if properties match."""
+        """
+        Check if properties match.
+
+        Parameters
+        ----------
+        nbt_props : nbt.TAG_Compound or None
+            NBT properties from a palette entry
+        block_props : dict
+            Block properties to compare
+
+        Returns
+        -------
+        bool
+            True if properties match, False otherwise
+        """
         if not nbt_props and not block_props:
             return True
         if not nbt_props or not block_props:
@@ -1130,9 +1377,23 @@ class Chunk:
 
     def get_tile_entity(self, x: int, y: int, z: int) -> Optional[nbt.TAG_Compound]:
         """
-        Returns the tile entity at given coordinates, or ``None`` if there isn't a tile entity
+        Returns the tile entity at given coordinates, or None if there isn't a tile entity.
 
         To iterate through all tile entities in the chunk, use :class:`Chunk.tile_entities`
+
+        Parameters
+        ----------
+        x : int
+            X coordinate
+        y : int
+            Y coordinate
+        z : int
+            Z coordinate
+
+        Returns
+        -------
+        nbt.TAG_Compound or None
+            The tile entity NBT compound, or None if not found
         """
         for tile_entity in self.tile_entities:
             t_x, t_y, t_z = [tile_entity[k].value for k in "xyz"]
@@ -1319,7 +1580,18 @@ class Chunk:
 
 
     def _create_biomes_in_section(self, section: nbt.TAG_Compound) -> None:
-        """Create biomes structure in a section."""
+        """
+        Create biomes structure in a section.
+
+        Parameters
+        ----------
+        section : nbt.TAG_Compound
+            The section to add biomes to
+
+        Returns
+        -------
+        None
+        """
         biomes = nbt.TAG_Compound(name='biomes')
         palette = nbt.TAG_List(name='palette', type=nbt.TAG_String)
         palette.tags.append(nbt.TAG_String(value='minecraft:plains'))
@@ -1330,7 +1602,22 @@ class Chunk:
     def _resize_biome_data_array(self, old_data: list, old_bits: int, new_bits: int) -> list:
         """
         Resize the biome data array when palette size changes.
+
         Extracts palette indices from old bit size and repackages them with new bit size.
+
+        Parameters
+        ----------
+        old_data : list
+            The old biome data array
+        old_bits : int
+            Previous number of bits per biome
+        new_bits : int
+            New number of bits per biome
+
+        Returns
+        -------
+        list
+            The resized biome data array
         """
         # Extract all 64 palette indices from the old data array
         indices = []
@@ -1395,6 +1682,23 @@ class Chunk:
         
         Handles palette optimization: when only one biome type exists, removes the data array.
         When multiple biomes exist, creates/resizes the data array as needed.
+
+        Parameters
+        ----------
+        biomes_data : nbt.TAG_Compound
+            The biomes NBT compound
+        palette_index : int
+            The index in the biome palette
+        x : int
+            X coordinate within chunk (0-15)
+        y : int
+            Y coordinate within section (0-15)
+        z : int
+            Z coordinate within chunk (0-15)
+
+        Returns
+        -------
+        None
         """
         palette = biomes_data['palette']
         

@@ -1,7 +1,7 @@
 from anvil import Chunk, EmptyChunk, EmptyRegion, Block, Region
 
-class TestMixedChunkTypes:
-    def test_mixed_chunk_types(self):
+
+def test_mixed_chunk_types():
         colors = ['red', 'orange', 'yellow', 'green']
 
         region = EmptyRegion(0, 0)
