@@ -536,7 +536,7 @@ class Chunk:
                             'y': y,
                             'palette': [block.name() for block in palette]
                         })
-                        # ✅ Ajouter le data array avec conversion correcte
+                        # Add data array with proper conversion
                         try:
                             states = _states_from_section(section)
                             # Convertir les valeurs NBT en entiers Python standard
@@ -831,7 +831,7 @@ class Chunk:
                     block_index = i
                     break
         
-        # ✅ AJOUT: Si le bloc n'existe pas, l'ajouter à la palette
+        # Add block in palette if does not exist
         if block_index is None:
             block_index = self._add_block_to_palette(section, block)
             # Mettre à jour la référence à la palette après l'ajout
