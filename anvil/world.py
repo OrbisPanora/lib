@@ -5,6 +5,7 @@ from .region import Region
 from .empty_region import EmptyRegion
 from .chunk import Chunk
 from .empty_chunk import EmptyChunk
+from .structure import Structure
 from .block import Block
 from .biome import Biome
 from .errors import OutOfBoundsCoordinates
@@ -1083,7 +1084,33 @@ class World:
         
         return None
     
-
+    def create_structure(self, x: int, y: int, z: int, pattern: Structure) -> None:
+        """
+        Create a pattern file from a specified area in the world.
+        
+        Parameters
+        ----------
+        x1, y1, z1 : int
+            Minimum coordinates of the area
+        pattern_file : str
+            Path to save the pattern file (JSON format)
+        
+        Example
+        -------
+        >>> world.create_pattern(0, 64, 0, 'pattern.json')
+        """
+        for block in pattern.blocks:
+            palette_index = block[1]
+            if not self.is_in_palette_section(pattern.palette[palette_index], block[0][0]+x, block[0][1]+y, block[0][2]+z):
+                self.add_block_to_palette(pattern.palette[palette_index], block[0][0]+x, block[0][1]+y, block[0][2]+z)
+        for block in self.blocks:
+            palette_index = block[1]
+            if palette_index >= len(self.palette):
+                air_block = Block.from_name("minecraft:air")
+                self.set_block(air_block, block[0][0]+x, block[0][1]+y, block[0][2]+z)
+                continue
+            self.set_block(pattern.palette[palette_index], block[0][0]+x, block[0][1]+y, block[0][2]+z)
+        self.save()
     
     def copy_area(self, src_x1: int, src_y1: int, src_z1: int,
                   src_x2: int, src_y2: int, src_z2: int,

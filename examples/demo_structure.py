@@ -38,10 +38,8 @@ try:
     
     print(f"Placing structure from {structure_file} at coordinates ({spawn_x}, {spawn_y}, {spawn_z})...")
     start_time = time.time()
-    world = structure.generate_in_world(world, spawn_x, spawn_y, spawn_z)
-
-    print("Saving changes...")
-    world.save()
+    
+    world.create_pattern(spawn_x, spawn_y, spawn_z, structure)
     
     end_time = time.time()
     print(f"Changes applied successfully in {end_time - start_time:.2f} seconds!")
