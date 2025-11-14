@@ -1,8 +1,17 @@
 import _path
 import anvil
+from config import WORLD_PATH, validate_world_path
+
+# Validate configuration
+is_valid, message = validate_world_path()
+if not is_valid:
+    print(f"\n⚠ Error: {message}")
+    print("\nPlease configure WORLD_PATH in examples/config.py")
+    print("Then run this script again.")
+    exit(1)
 
 # Simple test to verify set_block
-world_path = r'your_path'
+world_path = WORLD_PATH
 print(f"Opening world: {world_path}")
 
 word = anvil.World(world_path)

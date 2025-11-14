@@ -11,6 +11,8 @@ examples/test_112.py
 venv/
 *.mca
 *.nbt
+api/
+docs/
 
 # Visual Studio
 .vs/

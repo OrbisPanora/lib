@@ -1,6 +1,6 @@
 workflow:
   rules:
-    - if: '$CI_COMMIT_BRANCH == "master"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
     - when: never
 
 stages:
@@ -19,7 +19,7 @@ test:
   script:
     - pytest
   only:
-    - master
+    - main
   when : manual # Remove this when all of the tests are refactored
 
 build_wheel:
@@ -29,17 +29,13 @@ build_wheel:
     - python -m pip install --upgrade pip
     - pip install build
   script:
-    - |
-      if [ "$CI_COMMIT_REF_NAME" = "ci/pipeline" ]; then \
-        sed -i "s/version=.*/version='0.0.0.dev$CI_PIPELINE_ID',/" setup.py; \
-      fi
     - python -m build --wheel
   artifacts:
     paths:
       - dist/*.whl
     expire_in: 1 week
   only:
-    - master
+    - main
 
 release:
   stage: release
@@ -50,6 +46,6 @@ release:
     - WHEEL_FILE=$(ls dist/*.whl | head -n1 | xargs basename)
     - VERSION=$(echo "$WHEEL_FILE" | sed -E 's/^[^-]+-([^-]+)-.*$/\1/')
     - LABEL="orbispanora-parser-${VERSION}.whl"
-    - release-cli create --tag-name "test-release-$CI_PIPELINE_ID" --name "Test Release $CI_PIPELINE_ID" --description "Test Release $CI_PIPELINE_ID from ${CI_COMMIT_REF_NAME} branch." --assets-link "{\"name\":\"${LABEL}\",\"url\":\"${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_REF_NAME}/raw/dist/${WHEEL_FILE}?job=build_wheel\"}"
+    - release-cli create --tag-name "v${VERSION}" --name "Release ${VERSION}" --description "Release ${VERSION} of orbispanora-parser" --assets-link "{\"name\":\"${LABEL}\",\"url\":\"${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_REF_NAME}/raw/dist/${WHEEL_FILE}?job=build_wheel\"}"
   only:
-    - master
+    - main

@@ -1,14 +1,25 @@
 import _path
 import anvil
 import time
+import os
+from config import WORLD_PATH, validate_world_path
+
+# Validate configuration
+is_valid, message = validate_world_path()
+if not is_valid:
+    print(f"\n⚠ Error: {message}")
+    print("\nPlease configure WORLD_PATH in examples/config.py")
+    print("Then run this script again.")
+    exit(1)
+
+region_file = os.path.join(WORLD_PATH, 'region', 'r.0.0.mca')
 
 print("=== Region Cache Test (Standalone) ===\n")
+print(f"Using region file: {region_file}\n")
 
 # Load a region directly with cache enabled
 print("1. Loading region with cache enabled (64 chunks)")
-region_with_cache = anvil.Region.from_file(
-    r'your_path\region\r.0.0.mca'
-)
+region_with_cache = anvil.Region.from_file(region_file)
 print(f"Cache enabled: {region_with_cache._chunk_cache is not None}\n")
 
 # Performance test with cache
@@ -32,7 +43,7 @@ if stats:
 # Test without cache
 print("4. Loading region WITHOUT cache")
 region_no_cache = anvil.Region.from_file(
-    r'your_path\region\r.0.0.mca',
+    region_file,
     cache_size=None  # Disable cache
 )
 print(f"   Cache enabled: {region_no_cache._chunk_cache is not None}\n")

@@ -1,7 +1,17 @@
+import _path
 import anvil
 from anvil import Block
+from config import WORLD_PATH, validate_world_path
 
-world_path = r'yourpath'
+# Validate configuration
+is_valid, message = validate_world_path()
+if not is_valid:
+    print(f"\n⚠ Error: {message}")
+    print("\nPlease configure WORLD_PATH in examples/config.py")
+    print("Then run this script again.")
+    exit(1)
+
+world_path = WORLD_PATH
 
 print("=" * 60)
 print("DIMENSION SUPPORT DEMO")

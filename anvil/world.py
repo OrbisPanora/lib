@@ -752,21 +752,41 @@ class World:
     
     def get_world_bounds(self) -> Optional[Tuple[int, int, int, int, int, int]]:
         """
-        Get the bounds of the loaded world based on existing region files.
+        Get the bounds of the world based on existing region files.
+        If no regions are loaded in memory, scans region files on disk.
         
         Returns
         -------
         Optional[Tuple[int, int, int, int, int, int]]
-            (min_x, min_y, min_z, max_x, max_y, max_z) or None if no regions are loaded
+            (min_x, min_y, min_z, max_x, max_y, max_z) or None if no regions exist
             Note: Only X and Z bounds are accurate, Y bounds are set to Minecraft world limits
         """
-        if not self.regions:
+        region_coords = []
+        
+        # First, try to use loaded regions in memory
+        if self.regions:
+            region_coords = list(self.regions.keys())
+        # If no regions loaded, scan disk
+        elif os.path.exists(self.region_dir):
+            region_files = [f for f in os.listdir(self.region_dir) if f.endswith('.mca')]
+            for region_file in region_files:
+                # Parse region coordinates from filename (r.x.z.mca)
+                parts = region_file.replace('.mca', '').split('.')
+                if len(parts) == 3:
+                    try:
+                        region_x = int(parts[1])
+                        region_z = int(parts[2])
+                        region_coords.append((region_x, region_z))
+                    except (ValueError, IndexError):
+                        continue
+        
+        if not region_coords:
             return None
         
         min_x = min_z = float('inf')
         max_x = max_z = float('-inf')
         
-        for region_x, region_z in self.regions.keys():
+        for region_x, region_z in region_coords:
             region_min_x = region_x * 512
             region_max_x = region_min_x + 511
             region_min_z = region_z * 512
@@ -792,7 +812,7 @@ class World:
             The block to count (either a block name like "minecraft:stone" or a Block object)
         bounds : Optional[Tuple[int, int, int, int, int, int]]
             Bounding box as (min_x, min_y, min_z, max_x, max_y, max_z)
-            If None, counts blocks in the entire loaded world
+            If None, counts blocks in the entire world (scans all region files on disk)
         
         Returns
         -------
@@ -817,13 +837,28 @@ class World:
                     if not block.properties or current_block.properties == block.properties:
                         count += 1
         else:
-            world_bounds = self.get_world_bounds()
-            if world_bounds:
-                min_x, min_y, min_z, max_x, max_y, max_z = world_bounds
-                for x, y, z, current_block in self.stream_blocks(min_x, min_y, min_z, max_x, max_y, max_z):
-                    if current_block is not None and current_block.name() == block_name:
-                        if not block.properties or current_block.properties == block.properties:
-                            count += 1
+            # Scan all region files on disk, not just loaded regions
+            if os.path.exists(self.region_dir):
+                region_files = [f for f in os.listdir(self.region_dir) if f.endswith('.mca')]
+                for region_file in region_files:
+                    # Parse region coordinates from filename (r.x.z.mca)
+                    parts = region_file.replace('.mca', '').split('.')
+                    if len(parts) == 3:
+                        try:
+                            region_x = int(parts[1])
+                            region_z = int(parts[2])
+                            # Get bounds for this region
+                            min_x = region_x * 512
+                            max_x = min_x + 511
+                            min_z = region_z * 512
+                            max_z = min_z + 511
+                            # Stream blocks in this region
+                            for x, y, z, current_block in self.stream_blocks(min_x, -64, min_z, max_x, 320, max_z):
+                                if current_block is not None and current_block.name() == block_name:
+                                    if not block.properties or current_block.properties == block.properties:
+                                        count += 1
+                        except (ValueError, IndexError):
+                            continue
         
         return count
     
@@ -838,6 +873,27 @@ class World:
         """
         return list(self.regions.keys())
     
+    def apply_figure(self, figure_cls, blocks, point, size, filled=True) -> None:
+        """
+        Create and apply a geometric figure to the world.
+        
+        Parameters
+        ----------
+        figure_cls : class
+            The class of the figure (e.g., Cube, Pyramid, Sphere, Spiral)
+        blocks : list[Block]
+            List of block types to use
+        point : tuple[int, int, int]
+            Starting point (x, y, z)
+        size : tuple[int, int, int]
+            Size of the figure (width, height, depth)
+        filled : bool
+            If True, use filled figure, else use empty (hollow)
+        """
+        figure = figure_cls(blocks, point, size)
+        dictblock = figure.filled() if filled else figure.empty()
+        self.apply(dictblock)
+
     def apply(self, dictionary) -> None:
         """
         Apply the given dictionary of changes to the world.

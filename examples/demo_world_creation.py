@@ -1,8 +1,11 @@
+"""
+World Features Demo - Creates a demonstration world
+This example creates a new world to demonstrate World class features.
+Note: This creates a NEW world, not modifying an existing one.
+"""
+import _path
 import sys
 import os
-
-parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, parent_dir)
 
 import anvil
 from anvil import World, Block

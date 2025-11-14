@@ -1,14 +1,24 @@
 import _path
 import anvil
 import time
+from config import WORLD_PATH, validate_world_path
+
+# Validate configuration
+is_valid, message = validate_world_path()
+if not is_valid:
+    print(f"\n⚠ Error: {message}")
+    print("\nPlease configure WORLD_PATH in examples/config.py")
+    print("Then run this script again.")
+    exit(1)
 
 print("=== Cache Performance Demonstration ===\n")
+print(f"Using world: {WORLD_PATH}\n")
 
 # Test 1: Reading blocks (shows cache benefit)
 print("1. Reading 100 blocks from different chunks")
 print("   WITHOUT cache:")
 world_no_cache = anvil.World(
-    r'your_path',
+    WORLD_PATH,
     chunk_cache_size=None,  # Disable chunk cache
     region_cache_size=None   # Disable region cache
 )
@@ -25,7 +35,7 @@ print(f"      Average per block: {time_no_cache / 100:.4f}ms\n")
 
 print("   WITH cache:")
 world_with_cache = anvil.World(
-    r'your_path',
+    WORLD_PATH,
     chunk_cache_size=1024,  # Cache up to 1024 chunks
     region_cache_size=64     # Cache up to 64 regions
 )
@@ -56,7 +66,7 @@ print("=" * 50 + "\n")
 print("2. Repeated access to same chunk (1000 times)")
 print("   WITH cache:")
 world_cached = anvil.World(
-    r'your_path',
+    WORLD_PATH,
     chunk_cache_size=1024
 )
 
@@ -81,7 +91,7 @@ print(f"      Hit rate: {chunk_stats['hit_rate']}\n")
 print("4. Real-world scenario: Reading 25 different chunks")
 print("   Without cache:")
 world_no_cache2 = anvil.World(
-    r'your_path',
+    WORLD_PATH,
     chunk_cache_size=None
 )
 start = time.time()
@@ -94,7 +104,7 @@ print(f"      Time: {time_no_cache_multi:.2f}ms\n")
 
 print("   With cache:")
 world_with_cache2 = anvil.World(
-    r'your_path',
+    WORLD_PATH,
     chunk_cache_size=1024
 )
 start = time.time()
