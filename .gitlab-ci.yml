@@ -79,8 +79,6 @@ deploy-documentation:
     only:
       - master
       - cicd/documentation
-    rules:
-      - when: manual
 
 release:
   stage: release
