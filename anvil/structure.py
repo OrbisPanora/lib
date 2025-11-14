@@ -2,7 +2,6 @@ from typing import Tuple, Union, BinaryIO
 from nbt import nbt
 from io import BytesIO
 from anvil import Block
-from anvil import World
 from anvil import Chunk
 from .errors import GZipChunkData
 from .versions import VERSION_21w43a

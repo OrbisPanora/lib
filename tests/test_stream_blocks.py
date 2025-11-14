@@ -1,4 +1,3 @@
-import context as _
 from anvil import EmptyRegion, Region, Block
 
 def coord_to_index(x, y, z):
@@ -77,7 +76,7 @@ def test_index_5bits():
         region.set_block(Block('minecraft', block), i % 16, 0, i // 16)
 
     region = Region(region.save())
-    
+
     for i, block in enumerate(region.get_chunk(0, 0).stream_blocks(index=17)):
         i += 17
         if i < len(blocks):
