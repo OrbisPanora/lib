@@ -1,12 +1,20 @@
 workflow:
   rules:
     - if: '$CI_COMMIT_BRANCH == "master"'
+    - if: '$CI_COMMIT_BRANCH == "cicd/documentation"'
     - when: never
 
 stages:
   - test
   - build
+  - deploy
   - release
+
+include:
+    - project: 'IUT_INF63/generic-ci'
+      ref: 'main'
+      file:
+        - 'deploy/.docker-deploy.yml'
 
 test:
   stage: test
@@ -20,7 +28,23 @@ test:
     - pytest
   only:
     - master
-  when : manual # Remove this when all of the tests are refactored
+  when : manual
+
+build_docs:
+  stage: build
+  image: python:3.9
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install -r docs/requirements.txt
+  script:
+    - sphinx-build -b html docs docs/_build/html
+  artifacts:
+    paths:
+      - docs/_build/html
+    expire_in: 1 week
+  only:
+    - master
+    - cicd/documentation
 
 build_wheel:
   stage: build
@@ -40,6 +64,23 @@ build_wheel:
     expire_in: 1 week
   only:
     - master
+
+deploy-documentation:
+    extends: .deploy-image
+    stage: deploy
+    dependencies:
+      - build_docs
+    variables:
+        CONTAINER_NAME: orbispanora-docs
+        CONTAINER_IMAGE_PATH: nginx:alpine
+        NAMESPACE_TOKEN: $NAMESPACE_TOKEN
+        NAMESPACE_NAME: orbispanora
+    allow_failure: true
+    only:
+      - master
+      - cicd/documentation
+    rules:
+      - when: manual
 
 release:
   stage: release

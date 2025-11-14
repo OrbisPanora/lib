@@ -5,7 +5,7 @@ with open('README.md', 'r') as file:
 
 setuptools.setup(
     name='orbispanora-parser',
-    version='0.1', # Need top be increment at each release 
+    version='0.1',
     author='OrbisPanora',
     description='An updated version of the anvil-parser2, parser for the Minecraft anvil file format, supports all Minecraft verions',
     long_description=long_description,
