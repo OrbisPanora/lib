@@ -792,9 +792,13 @@ class World:
         
         local_x = x & 15
         local_z = z & 15
-        
+
         try:
-            chunk.set_biome(biome, local_x, y, local_z)
+            # Chunk utilise (biome, x, y, z), EmptyChunk utilise (biome, x, z)
+            if isinstance(chunk, EmptyChunk):
+                chunk.set_biome(biome, local_x, local_z)
+            else:
+                chunk.set_biome(biome, local_x, y, local_z)
         except Exception as e:
             print(f"Failed to set biome at ({x}, {y}, {z}): {e}")
     
