@@ -5,6 +5,7 @@ from .region import Region
 from .empty_region import EmptyRegion
 from .chunk import Chunk
 from .empty_chunk import EmptyChunk
+from .structure import Structure
 from .block import Block
 from .biome import Biome
 from .errors import OutOfBoundsCoordinates
@@ -309,6 +310,198 @@ class World:
                 self.regions[(region_x, region_z)] = empty_region
                 empty_region.set_block(block, x, y, z)
 
+    def get_biome(self, x: int, y: int, z: int) -> Optional[Biome]:
+        """
+        Get the biome at the specified global coordinates.
+        
+        Parameters
+        ----------
+        x: int
+            Global X coordinate
+        y: int
+            Global Y coordinate
+        z: int
+            Global Z coordinate
+            
+        Returns
+        -------
+        Optional[Biome]
+            The biome at the specified coordinates, or None if not found
+            
+        Example
+        -------
+        >>> biome = world.get_biome(100, 64, -50)
+        >>> print(biome.name())
+        """
+        chunk_x = x >> 4  
+        chunk_z = z >> 4  
+        
+        chunk = self.get_chunk(chunk_x, chunk_z)
+        if chunk is None:
+            return None
+        
+        local_x = x & 15 
+        local_z = z & 15 
+        
+        try:
+            return chunk.get_biome(local_x, y, local_z)
+        except:
+            return None
+
+    def set_biome(self, biome: Biome, x: int, y: int, z: int) -> None:
+        """
+        Set the biome at the specified global coordinates.
+        This sets the biome for a 4x4x4 volume.
+        
+        Parameters
+        ----------
+        biome: Biome
+            The biome to set
+        x: int
+            Global X coordinate
+        y: int
+            Global Y coordinate
+        z: int
+            Global Z coordinate
+            
+        Example
+        -------
+        >>> from anvil import Biome
+        >>> world.set_biome(Biome.from_name("minecraft:desert"), 100, 64, -50)
+        """
+        chunk_x = x >> 4  
+        chunk_z = z >> 4  
+        
+        chunk = self.get_chunk(chunk_x, chunk_z)
+        if chunk is None:
+            raise OutOfBoundsCoordinates("Chunk does not exist")
+        
+        local_x = x & 15 
+        local_z = z & 15 
+        
+        # EmptyChunk.set_biome() takes only x, z (no y parameter)
+        # while Chunk.set_biome() takes x, y, z
+        if isinstance(chunk, EmptyChunk):
+            chunk.set_biome(biome, local_x, local_z)
+        else:
+            chunk.set_biome(biome, local_x, y, local_z)
+        self.save()
+
+    def set_chunk_biome(self, biome: Biome, chunk_x: int, chunk_z: int) -> None:
+        """
+        Set the entire chunk to a single biome (optimized for uniform biomes).
+        
+        Parameters
+        ----------
+        biome: Biome
+            The biome to set for the entire chunk
+        chunk_x: int
+            Chunk X coordinate
+        chunk_z: int
+            Chunk Z coordinate
+            
+        Example
+        -------
+        >>> from anvil import Biome
+        >>> world.set_chunk_biome(Biome.from_name("minecraft:ice_spikes"), 5, -3)
+        """
+        chunk = self.get_chunk(chunk_x, chunk_z)
+        if chunk is None:
+            raise OutOfBoundsCoordinates("Chunk does not exist")
+        
+        chunk.set_chunk_biome(biome)
+        self.save()
+
+    def set_section_biome(self, biome: Biome, chunk_x: int, chunk_z: int, section_y: int) -> None:
+        """
+        Set an entire section to a single biome within a chunk.
+        
+        Parameters
+        ----------
+        biome: Biome
+            The biome to set for the entire section
+        chunk_x: int
+            Chunk X coordinate
+        chunk_z: int
+            Chunk Z coordinate
+        section_y: int
+            Section Y index (e.g., -4 to 19 for standard world height)
+            
+        Example
+        -------
+        >>> from anvil import Biome
+        >>> world.set_section_biome(Biome.from_name("minecraft:jungle"), 5, -3, 4)
+        """
+        chunk = self.get_chunk(chunk_x, chunk_z)
+        if chunk is None:
+            raise OutOfBoundsCoordinates("Chunk does not exist")
+        
+        section = chunk.get_section(section_y)
+        if section is None:
+            section = chunk._create_section(section_y)
+        
+        biome_name = biome.name()
+        
+        # Create or update biomes structure in section
+        if 'biomes' not in section:
+            from . import nbt
+            biomes_data = nbt.TAG_Compound(name='biomes')
+            palette = nbt.TAG_List(name='palette', type=nbt.TAG_String)
+            palette.tags.append(nbt.TAG_String(value=biome_name))
+            biomes_data.tags.append(palette)
+            section.tags.append(biomes_data)
+        else:
+            biomes_data = section['biomes']
+            palette = biomes_data['palette']
+            
+            # Reset palette to single biome
+            palette.tags.clear()
+            palette.tags.append(nbt.TAG_String(value=biome_name))
+            
+            # Remove data array if present (not needed for uniform biome)
+            biomes_data.tags[:] = [tag for tag in biomes_data.tags if tag.name != 'data']
+        
+        self.save()
+
+    def set_region_biome(self, biome: Biome, region_x: int, region_z: int) -> None:
+        """
+        Set all chunks in a region to a single biome.
+        
+        Parameters
+        ----------
+        biome: Biome
+            The biome to set for the entire region
+        region_x: int
+            Region X coordinate
+        region_z: int
+            Region Z coordinate
+            
+        Example
+        -------
+        >>> from anvil import Biome
+        >>> world.set_region_biome(Biome.from_name("minecraft:plains"), 0, 0)
+        """
+        region = self.get_region(region_x, region_z)
+        
+        # Iterate through all possible chunks in the region
+        for chunk_x in range(32):
+            for chunk_z in range(32):
+                try:
+                    if isinstance(region, Region):
+                        chunk = region.get_chunk(chunk_x, chunk_z)
+                    else:
+                        # Calculate global chunk coordinates for EmptyRegion
+                        global_chunk_x = region_x * 32 + chunk_x
+                        global_chunk_z = region_z * 32 + chunk_z
+                        chunk = region.get_chunk(global_chunk_x, global_chunk_z)
+                    
+                    if chunk is not None:
+                        chunk.set_chunk_biome(biome)
+                except:
+                    continue
+        
+        self.save()
+
     def replace_block_at(self, x: int, y: int, z: int, new_block: Union[str, Block]) -> bool:
         """
         Replace a single block at specific global coordinates.
@@ -560,21 +753,41 @@ class World:
     
     def get_world_bounds(self) -> Optional[Tuple[int, int, int, int, int, int]]:
         """
-        Get the bounds of the loaded world based on existing region files.
+        Get the bounds of the world based on existing region files.
+        If no regions are loaded in memory, scans region files on disk.
         
         Returns
         -------
         Optional[Tuple[int, int, int, int, int, int]]
-            (min_x, min_y, min_z, max_x, max_y, max_z) or None if no regions are loaded
+            (min_x, min_y, min_z, max_x, max_y, max_z) or None if no regions exist
             Note: Only X and Z bounds are accurate, Y bounds are set to Minecraft world limits
         """
-        if not self.regions:
+        region_coords = []
+        
+        # First, try to use loaded regions in memory
+        if self.regions:
+            region_coords = list(self.regions.keys())
+        # If no regions loaded, scan disk
+        elif os.path.exists(self.region_dir):
+            region_files = [f for f in os.listdir(self.region_dir) if f.endswith('.mca')]
+            for region_file in region_files:
+                # Parse region coordinates from filename (r.x.z.mca)
+                parts = region_file.replace('.mca', '').split('.')
+                if len(parts) == 3:
+                    try:
+                        region_x = int(parts[1])
+                        region_z = int(parts[2])
+                        region_coords.append((region_x, region_z))
+                    except (ValueError, IndexError):
+                        continue
+        
+        if not region_coords:
             return None
         
         min_x = min_z = float('inf')
         max_x = max_z = float('-inf')
         
-        for region_x, region_z in self.regions.keys():
+        for region_x, region_z in region_coords:
             region_min_x = region_x * 512
             region_max_x = region_min_x + 511
             region_min_z = region_z * 512
@@ -600,7 +813,7 @@ class World:
             The block to count (either a block name like "minecraft:stone" or a Block object)
         bounds : Optional[Tuple[int, int, int, int, int, int]]
             Bounding box as (min_x, min_y, min_z, max_x, max_y, max_z)
-            If None, counts blocks in the entire loaded world
+            If None, counts blocks in the entire world (scans all region files on disk)
         
         Returns
         -------
@@ -625,13 +838,28 @@ class World:
                     if not block.properties or current_block.properties == block.properties:
                         count += 1
         else:
-            world_bounds = self.get_world_bounds()
-            if world_bounds:
-                min_x, min_y, min_z, max_x, max_y, max_z = world_bounds
-                for x, y, z, current_block in self.stream_blocks(min_x, min_y, min_z, max_x, max_y, max_z):
-                    if current_block is not None and current_block.name() == block_name:
-                        if not block.properties or current_block.properties == block.properties:
-                            count += 1
+            # Scan all region files on disk, not just loaded regions
+            if os.path.exists(self.region_dir):
+                region_files = [f for f in os.listdir(self.region_dir) if f.endswith('.mca')]
+                for region_file in region_files:
+                    # Parse region coordinates from filename (r.x.z.mca)
+                    parts = region_file.replace('.mca', '').split('.')
+                    if len(parts) == 3:
+                        try:
+                            region_x = int(parts[1])
+                            region_z = int(parts[2])
+                            # Get bounds for this region
+                            min_x = region_x * 512
+                            max_x = min_x + 511
+                            min_z = region_z * 512
+                            max_z = min_z + 511
+                            # Stream blocks in this region
+                            for x, y, z, current_block in self.stream_blocks(min_x, -64, min_z, max_x, 320, max_z):
+                                if current_block is not None and current_block.name() == block_name:
+                                    if not block.properties or current_block.properties == block.properties:
+                                        count += 1
+                        except (ValueError, IndexError):
+                            continue
         
         return count
     
@@ -1224,7 +1452,33 @@ class World:
         
         return None
     
-
+    def create_structure(self, x: int, y: int, z: int, pattern: Structure) -> None:
+        """
+        Create a pattern file from a specified area in the world.
+        
+        Parameters
+        ----------
+        x1, y1, z1 : int
+            Minimum coordinates of the area
+        pattern_file : str
+            Path to save the pattern file (JSON format)
+        
+        Example
+        -------
+        >>> world.create_pattern(0, 64, 0, 'pattern.json')
+        """
+        for block in pattern.blocks:
+            palette_index = block[1]
+            if not self.is_in_palette_section(pattern.palette[palette_index], block[0][0]+x, block[0][1]+y, block[0][2]+z):
+                self.add_block_to_palette(pattern.palette[palette_index], block[0][0]+x, block[0][1]+y, block[0][2]+z)
+        for block in self.blocks:
+            palette_index = block[1]
+            if palette_index >= len(self.palette):
+                air_block = Block.from_name("minecraft:air")
+                self.set_block(air_block, block[0][0]+x, block[0][1]+y, block[0][2]+z)
+                continue
+            self.set_block(pattern.palette[palette_index], block[0][0]+x, block[0][1]+y, block[0][2]+z)
+        self.save()
     
     def copy_area(self, src_x1: int, src_y1: int, src_z1: int,
                   src_x2: int, src_y2: int, src_z2: int,

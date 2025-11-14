@@ -2,7 +2,6 @@ from typing import Tuple, Union, BinaryIO
 from nbt import nbt
 from io import BytesIO
 from anvil import Block
-from anvil import World
 from anvil import Chunk
 from .errors import GZipChunkData
 from .versions import VERSION_21w43a
@@ -53,16 +52,3 @@ class Structure:
             raise TypeError("Error from file to get datas")
         return cls(data)
     
-    def generate_in_world(self, world: World, x:int, y:int, z:int):
-        for block in self.blocks:
-            palette_index = block[1]
-            if not world.is_in_palette_section(self.palette[palette_index], block[0][0]+x, block[0][1]+y, block[0][2]+z):
-                world.add_block_to_palette(self.palette[palette_index], block[0][0]+x, block[0][1]+y, block[0][2]+z)
-        for block in self.blocks:
-            palette_index = block[1]
-            if palette_index >= len(self.palette):
-                air_block = Block.from_name("minecraft:air")
-                world.set_block(air_block, block[0][0]+x, block[0][1]+y, block[0][2]+z)
-                continue
-            world.set_block(self.palette[palette_index], block[0][0]+x, block[0][1]+y, block[0][2]+z)
-        return world
