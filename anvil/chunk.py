@@ -536,6 +536,20 @@ class Chunk:
                             'y': y,
                             'palette': [block.name() for block in palette]
                         })
+                        # Add data array with proper conversion
+                        try:
+                            states = _states_from_section(section)
+                            # Convert nbt values to standard Python integers
+                            # and ensure unsigned representation
+                            section_dict['data'] = [
+                                int(state) if state >= 0 else int(state + 2**64) 
+                                for state in states
+                            ]
+                        except (KeyError, AttributeError):
+                            # if there is no data array, set it to empty list
+                            section_dict['data'] = []
+                        
+                        sections_data.append(section_dict)
             data['sections'] = sections_data
         else:
             # Full mode: detailed section data
@@ -817,10 +831,10 @@ class Chunk:
                     block_index = i
                     break
         
-        # ✅ AJOUT: Si le bloc n'existe pas, l'ajouter à la palette
+        # Add block in palette if does not exist
         if block_index is None:
             block_index = self._add_block_to_palette(section, block)
-            # Mettre à jour la référence à la palette après l'ajout
+            # update block refference after palette change
             palette = _palette_from_section(section)
         
         bits = max((len(palette) - 1).bit_length(), 4)
