@@ -3,14 +3,22 @@ import os
 import anvil
 import sys
 import time
+from config import WORLD_PATH, validate_world_path
 
-if len(sys.argv) < 2:
-    print("Usage: python modify_existing_world.py <path_to_minecraft_world> [x y z]")
-    print("Example: python modify_existing_world.py C:\\Users\\username\\AppData\\Roaming\\.minecraft\\saves\\MyWorld 0 100 0")
-    print("If coordinates are not provided, a diamond block will be placed at (0, 100, 0)")
-    sys.exit(1)
-
-WORLD_FOLDER = sys.argv[1]
+# Use command-line argument if provided, otherwise use config
+if len(sys.argv) >= 2:
+    WORLD_FOLDER = sys.argv[1]
+else:
+    # Use configured world path
+    is_valid, message = validate_world_path()
+    if not is_valid:
+        print(f"\n⚠ Error: {message}")
+        print("\nUsage: python modify_existing_world.py <path_to_minecraft_world> [x y z]")
+        print("OR configure WORLD_PATH in examples/config.py")
+        print("\nExample: python modify_existing_world.py C:\\Users\\username\\AppData\\Roaming\\.minecraft\\saves\\MyWorld 0 100 0")
+        print("If coordinates are not provided, a diamond block will be placed at (0, 100, 0)")
+        sys.exit(1)
+    WORLD_FOLDER = WORLD_PATH
 
 if not os.path.exists(WORLD_FOLDER):
     print(f"Error: The folder {WORLD_FOLDER} does not exist.")

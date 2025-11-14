@@ -5,12 +5,22 @@ Shows all the new functionality added to the World class
 import _path
 import anvil
 from anvil import Block, Biome
+from config import WORLD_PATH, validate_world_path
 
 print("=" * 60)
 print("WORLD CLASS - ADVANCED FEATURES DEMO")
 print("=" * 60)
 
-world_path = r'yourpath'
+# Validate configuration
+is_valid, message = validate_world_path()
+if not is_valid:
+    print(f"\n⚠ Error: {message}")
+    print("\nPlease configure WORLD_PATH in examples/config.py")
+    print("Then run this script again.")
+    exit(1)
+
+world_path = WORLD_PATH
+print(f"\nUsing world: {world_path}\n")
 world = anvil.World(world_path, chunk_cache_size=512, region_cache_size=32)
 
 print("\n1. WORLD INFORMATION")

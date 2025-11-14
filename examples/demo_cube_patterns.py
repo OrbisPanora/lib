@@ -1,6 +1,15 @@
 import _path
 import anvil
 from patterns import Cube, Pyramid, Spiral, Sphere
+from config import WORLD_PATH, validate_world_path
+
+# Validate configuration
+is_valid, message = validate_world_path()
+if not is_valid:
+    print(f"\n⚠ Error: {message}")
+    print("\nPlease configure WORLD_PATH in examples/config.py")
+    print("Then run this script again.")
+    exit(1)
 
 # Example: Creating patterns in a Minecraft world using the World facade
 # The World class provides caching for better performance
@@ -8,7 +17,7 @@ from patterns import Cube, Pyramid, Spiral, Sphere
 # Initialize world with custom cache sizes (optional)
 # Default: chunk_cache_size=512, region_cache_size=32
 world = anvil.World(
-    r'your path',
+    WORLD_PATH,
     chunk_cache_size=1024,  # Cache up to 1024 chunks
     region_cache_size=64     # Cache up to 64 regions
 )

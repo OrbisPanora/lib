@@ -2,14 +2,23 @@
 COMPLETE TEST OF ALL FEATURES
 Tests absolutely all features of the OrbisPanora library
 """
+import _path
 import sys
 import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import anvil
 from anvil import Block, Biome
+from config import WORLD_PATH, validate_world_path
 
-world_path = r'your_path'
+# Validate configuration
+is_valid, message = validate_world_path()
+if not is_valid:
+    print(f"\n⚠ Error: {message}")
+    print("\nPlease configure WORLD_PATH in examples/config.py")
+    print("Then run this script again.")
+    exit(1)
+
+world_path = WORLD_PATH
 
 print("=" * 80)
 print("COMPLETE TEST - ALL FEATURES")
