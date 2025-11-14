@@ -75,7 +75,7 @@ deploy-documentation:
     variables:
         CONTAINER_NAME: orbispanora-docs
         CONTAINER_IMAGE_PATH: nginx:alpine
-        NAMESPACE_TOKEN: $KUBE_NAMESPACE_TOKEN
+        NAMESPACE_TOKEN: "${KUBE_NAMESPACE_TOKEN}"
         NAMESPACE_NAME: iut-inf63-projets-etudiants-orbispanora
     allow_failure: true
     only:
