@@ -669,7 +669,20 @@ class World:
 
     def apply(self, dictionary) -> None:
         """
-        Apply the given dictionary of changes to the world.
+        Apply a dictionary of block changes to the world.
+
+        Parameters
+        ----------
+        dictionary : dict
+            Dictionary mapping (x, y, z) tuples to Block objects
+
+        Example
+        -------
+        >>> changes = {
+        ...     (100, 64, 200): Block.from_name("minecraft:stone"),
+        ...     (101, 64, 200): Block.from_name("minecraft:dirt")
+        ... }
+        >>> world.apply(changes)
         """
         for k, v in dictionary.items():
             self.set_block(v, k[0], k[1], k[2])
