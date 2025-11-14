@@ -67,6 +67,8 @@ build_wheel:
   only:
     - master
 
+# I'll finish that after the delivery...
+
 deploy-documentation:
     extends: .deploy-image
     stage: deploy
