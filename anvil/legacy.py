@@ -1,3 +1,7 @@
+"""
+Legacy block and biome mapping for pre-1.13 Minecraft versions.
+Loads JSON mappings for numeric ID to namespaced ID conversion.
+"""
 import json
 import os
 

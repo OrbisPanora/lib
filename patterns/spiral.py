@@ -8,10 +8,28 @@ class Spiral(patterns.figure.Figure):
     """
     Represents a spiral pattern for block placement.
     Inherits from Figure and provides methods to generate empty and filled spirals.
+    
+    Attributes
+    ----------
+    blocks : list[anvil.Block]
+        List of block types to use
+    point : tuple[int, int, int]
+        Starting point (x, y, z)
+    size : tuple[int, int, int]
+        Bounding box size (width, height, depth) for the spiral
     """
     def __init__(self, blocks : list[anvil.Block], point : tuple[int, int, int], size : tuple[int, int, int]):
         """
         Initialize a Spiral object.
+        
+        Parameters
+        ----------
+        blocks : list[anvil.Block]
+            List of block types to use
+        point : tuple[int, int, int]
+            Starting point (x, y, z)
+        size : tuple[int, int, int]
+            Bounding box size (width, height, depth) for the spiral
         """
         super().__init__(blocks, point, size)
 
