@@ -1,7 +1,7 @@
 import os
 import anvil
 from random import choice
-from pattern.figure import Figure
+from patterns.figure import Figure
 
 class Sphere(Figure):
     """

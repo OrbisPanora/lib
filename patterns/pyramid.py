@@ -1,9 +1,9 @@
 import os
 import anvil
 from random import choice
-import pattern
+import patterns
 
-class Pyramid(pattern.figure.Figure):
+class Pyramid(patterns.figure.Figure):
     """
     Represents a pyramid pattern for block placement.
     Inherits from Figure and provides methods to generate empty and filled pyramids.

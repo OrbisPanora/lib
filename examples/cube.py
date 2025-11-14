@@ -1,6 +1,6 @@
 import _path
 import anvil
-from pattern import Cube, Pyramid, Spiral, Sphere
+from patterns import Cube, Pyramid, Spiral, Sphere
 
 # Example: Creating patterns in a Minecraft world using the World facade
 # The World class provides caching for better performance

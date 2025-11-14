@@ -2,9 +2,9 @@ import os
 from math import cos, sin
 import anvil
 from random import choice
-import pattern
+import patterns
 
-class Spiral(pattern.figure.Figure):
+class Spiral(patterns.figure.Figure):
     """
     Represents a spiral pattern for block placement.
     Inherits from Figure and provides methods to generate empty and filled spirals.
