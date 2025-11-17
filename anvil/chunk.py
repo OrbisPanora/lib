@@ -1805,28 +1805,14 @@ class Chunk:
         -------
         >>> chunk.set_chunk_biome(Biome.from_name("minecraft:desert"))
         """
-        biome_name = biome.name()
+        # Set biome for each 4x4x4 biome block in the chunk
+        # Biomes are stored in 4x4x4 volumes, so we iterate in steps of 4
         section_range = _section_height_range(self.version)
         
         for section_y in section_range:
-            section = self.get_section(section_y)
-            if section is None:
-                section = self._create_section(section_y)
-
-            # Create or get biomes structure
-            if 'biomes' not in section:
-                biomes_data = nbt.TAG_Compound(name='biomes')
-                palette = nbt.TAG_List(name='palette', type=nbt.TAG_String)
-                palette.tags.append(nbt.TAG_String(value=biome_name))
-                biomes_data.tags.append(palette)
-                section.tags.append(biomes_data)
-            else:
-                biomes_data = section['biomes']
-                palette = biomes_data['palette']
-                
-                # Reset palette to single biome
-                palette.tags.clear()
-                palette.tags.append(nbt.TAG_String(value=biome_name))
-                
-                # Remove data array if present (not needed for uniform biome)
-                biomes_data.tags[:] = [tag for tag in biomes_data.tags if tag.name != 'data']
+            # Each section is 16 blocks tall, iterate through biome positions (every 4 blocks)
+            for y_offset in range(0, 16, 4):
+                y = section_y * 16 + y_offset
+                for x in range(0, 16, 4):
+                    for z in range(0, 16, 4):
+                        self.set_biome(biome, x, y, z)
