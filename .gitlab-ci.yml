@@ -1,9 +1,3 @@
-workflow:
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
-    - if: '$CI_COMMIT_BRANCH == "cicd/sonar"'
-    - when: never
-
 stages:
   - test
   - sonar
@@ -23,7 +17,7 @@ test:
     - pytest
   only:
     - main
-    - cicd/sonar
+    - dev
 
 sonarqube-check:
   stage: sonar
@@ -42,6 +36,7 @@ sonarqube-check:
   allow_failure: true
   only:
     - main
+    - dev
 
 build_wheel:
   stage: build
