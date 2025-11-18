@@ -18,12 +18,12 @@ test:
     - pip install pytest
     - |
       if [ -f tests/requirements.txt ]; then pip install -r tests/requirements.txt; fi
+    - pip install -e .
   script:
     - pytest
   only:
     - main
     - cicd/sonar
-  when : manual
 
 sonarqube-check:
   stage: sonar
@@ -42,7 +42,6 @@ sonarqube-check:
   allow_failure: true
   only:
     - main
-    - cicd/sonar
 
 build_wheel:
   stage: build
