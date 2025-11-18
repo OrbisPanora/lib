@@ -1,30 +1,46 @@
-workflow:
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
-    - when: never
-
 stages:
   - test
+  - sonar
   - build
   - release
 
 test:
   stage: test
-  image: python:3.9
+  image: python:3.10
   before_script:
     - python -m pip install --upgrade pip
     - pip install pytest
     - |
       if [ -f tests/requirements.txt ]; then pip install -r tests/requirements.txt; fi
+    - pip install -e .
   script:
     - pytest
   only:
     - main
-  when : manual # Remove this when all of the tests are refactored
+    - dev
+
+sonarqube-check:
+  stage: sonar
+  image: 
+    name: sonarsource/sonar-scanner-cli:latest
+    entrypoint: [""]
+  variables:
+    SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"  
+    GIT_DEPTH: "0"  
+  cache:
+    key: "${CI_JOB_NAME}"
+    paths:
+      - .sonar/cache
+  script: 
+    - sonar-scanner
+  allow_failure: true
+  only:
+    - main
+    - dev
 
 build_wheel:
   stage: build
-  image: python:3.9
+  image: python:3.10
   before_script:
     - python -m pip install --upgrade pip
     - pip install build
