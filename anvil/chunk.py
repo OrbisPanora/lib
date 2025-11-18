@@ -524,33 +524,37 @@ class Chunk:
         }
         
         if simplify:
-            # Lightweight mode: only palette per section
+            # Lightweight mode: only palette per section with data array
             sections_data = []
             section_range = _section_height_range(self.version)
+            
             for y in section_range:
                 section = self.get_section(y)
-                if section is not None:
-                    palette = self.get_palette(section)
-                    if palette:
-                        sections_data.append({
-                            'y': y,
-                            'palette': [block.name() for block in palette]
-                        })
-                        # Add data array with proper conversion
-                        try:
-                            states = _states_from_section(section)
-                            # Convert nbt values to standard Python integers
-                            # and ensure unsigned representation
-                            section_dict['data'] = [
-                                int(state) if state >= 0 else int(state + 2**64) 
-                                for state in states
-                            ]
-                        except (KeyError, AttributeError):
-                            # if there is no data array, set it to empty list
-                            section_dict['data'] = []
-                        
-                        sections_data.append(section_dict)
+                if section is None:
+                    continue
+                    
+                palette = self.get_palette(section)
+                if not palette:
+                    continue
+                    
+                data_array = []
+                if 'block_states' in section:
+                    block_states = section['block_states']
+                    if 'data' in block_states:
+                        states = block_states['data'].value
+                        data_array = [int(state) if state >= 0 else int(state + 2**64) for state in states]
+                elif 'BlockStates' in section:
+                    states = section['BlockStates'].value
+                    data_array = [int(state) if state >= 0 else int(state + 2**64) for state in states]
+                
+                section_dict = {
+                    'y': y,
+                    'data': data_array,
+                    'palette': [block.name() for block in palette]
+                }
+                sections_data.append(section_dict)
             data['sections'] = sections_data
+            
         else:
             # Full mode: detailed section data
             sections_data = []
@@ -744,16 +748,16 @@ class Chunk:
     
     def set_palette_in_section(self, section: nbt.TAG_Compound, palette: nbt.TAG_List) -> None:
         """Set the palette in a section directly."""
-        if self.version >= VERSION_21w43a:
-            if 'block_states' not in section:
-                section.tags.append(nbt.TAG_Compound(name='block_states'))
-            block_states = section['block_states']
-            
-            block_states.tags.append(nbt.TAG_List(name='palette', type=nbt.TAG_Compound))
-            block_states['palette'] = palette
-        else:
-            section.tags.append(nbt.TAG_List(name='Palette', type=nbt.TAG_Compound))
-            section['Palette'] = palette
+        old_palette = self.get_palette(section)
+        if len(old_palette) != len(palette):
+            raise ValueError("New palette must have the same length as the old palette.")
+        if 'block_states' not in section:
+            section.tags.append(nbt.TAG_Compound(name='block_states'))
+        block_states = section['block_states']
+
+        block_states.tags = [tag for tag in block_states.tags if tag.name != 'palette']
+        
+        block_states['palette'] = palette
 
     def _add_block_to_palette(self, section: nbt.TAG_Compound, block: Block) -> int:
         """Add a block to the palette and return its index."""
