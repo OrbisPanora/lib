@@ -1067,9 +1067,9 @@ class World:
         except Exception as e:
             print(f"Failed to set biome at ({x}, {y}, {z}): {e}")
     
-    def replace_biomes(self, old_biome: Union[str, Biome], new_biome: Union[str, Biome],
+    """def replace_biomes(self, old_biome: Union[str, Biome], new_biome: Union[str, Biome],
                        bounds: Optional[Tuple[int, int, int, int, int, int]] = None) -> int:
-        """
+        
         Replace all occurrences of a specific biome with another biome.
         
         Parameters
@@ -1091,7 +1091,7 @@ class World:
         -------
         >>> count = world.replace_biomes("minecraft:desert", "minecraft:plains")
         >>> count = world.replace_biomes(Biome('desert'), Biome('plains'), bounds=(0, 60, 0, 100, 70, 100))
-        """
+       
         if isinstance(old_biome, str):
             old_biome = Biome.from_name(old_biome)
         if isinstance(new_biome, str):
@@ -1124,7 +1124,7 @@ class World:
                         continue
         
         return count
-    
+    """
 
     
     def find_blocks(self, block: Union[str, Block], 
