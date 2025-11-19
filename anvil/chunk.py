@@ -477,7 +477,7 @@ class Chunk:
         if simplify:
             # Lightweight mode: only palette per section with data array
             sections_data = []
-            section_range = _section_height_range(self.version)
+            section_range = section_height_range(self.version)
             
             for y in section_range:
                 section = self.get_section(y)
@@ -1333,7 +1333,7 @@ class Chunk:
         old_props = old_block.properties
         count = 0
 
-        section_range = _section_height_range(self.version)
+        section_range = section_height_range(self.version)
 
         for section_y in section_range:
             section = self.get_section(section_y)

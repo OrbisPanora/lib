@@ -1,3 +1,4 @@
+import os
 from typing import Tuple, Union, BinaryIO, Optional
 from nbt import nbt
 import zlib
