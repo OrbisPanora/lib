@@ -1,8 +1,8 @@
-from typing import List, Tuple, Sequence, Iterable
-from . import EmptySection, Block
-from .errors import OutOfBoundsCoordinates
 import array
+from typing import Sequence, Iterable
 from nbt import nbt
+from . import EmptySection, Block
+
 
 def bin_append(a, b, length=None):
     length = length or b.bit_length()
