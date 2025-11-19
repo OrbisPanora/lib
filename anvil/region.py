@@ -22,7 +22,7 @@ class Region:
     _chunk_cache: :class:`CacheManager` or None
         Optional LRU cache for loaded chunks
     """
-    __slots__ = ('data', '_chunk_cache', 'xpos', 'zpos')
+    __slots__ = ('data', '_chunk_cache', 'region_x', 'region_z')
     
     def __init__(self, data: bytes, cache_size: Optional[int] = 64, region_x: Optional[int] = None, region_z: Optional[int] = None):
         """
@@ -281,12 +281,12 @@ class Region:
             base = os.path.basename(file)
             match = re.match(r"r\.(-?\d+)\.(-?\d+)\.mca$", base)
             if not match:
-                raise ValueError(f"Invalid region file name: {filename}")
+                raise ValueError(f"Invalid region file name: {file}")
 
             x = int(match.group(1))
             z = int(match.group(2))
             with open(file, 'rb') as f:
-                return cls(data=f.read(), cache_size=cache_size, xpos=x, zpos=z)
+                return cls(data=f.read(), cache_size=cache_size, region_x=x, region_z=z)
         else:
             return cls(data=file.read(), cache_size=cache_size)
 
