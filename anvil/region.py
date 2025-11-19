@@ -1,7 +1,6 @@
 from typing import Tuple, Union, BinaryIO, Optional
 from nbt import nbt
 import zlib
-import os
 from io import BytesIO
 import anvil
 from .errors import GZipChunkData
