@@ -926,7 +926,7 @@ class Chunk:
                     # Verify write
                     stored = (new_states[long_index] >> offset) & mask
                     if stored != block_index:
-                        raise(f"ERROR: Value mismatch at {i}: wrote {block_index} but read {stored}")
+                        raise RuntimeError(f"ERROR: Value mismatch at {i}: wrote {block_index} but read {stored}")
                 else:
                     # Complex case: bits span two longs
                     bits_in_first = 64 - offset
@@ -952,7 +952,7 @@ class Chunk:
                         stored_second = new_states[long_index + 1] & second_mask
                         stored = stored_first | (stored_second << bits_in_first)
                         if stored != block_index:
-                            raise(f"ERROR: Spanning value mismatch at {i}: wrote {block_index} but read {stored}")
+                            raise RuntimeError(f"ERROR: Spanning value mismatch at {i}: wrote {block_index} but read {stored}")
                 
             # Update the states array
             states[:] = new_states
@@ -1079,7 +1079,7 @@ class Chunk:
                 stored_second = states[long_index + 1] & mask_second
                 stored_value = stored_first | (stored_second << bits_in_first)
                 if stored_value != block_index:
-                    raise(f"WARNING: Block data verification failed at ({x},{y},{z}): wrote {block_index} but read {stored_value}")
+                    raise RuntimeError(f"WARNING: Block data verification failed at ({x},{y},{z}): wrote {block_index} but read {stored_value}")
             
             # Verify the write
             stored_first = (states[long_index] >> offset) & mask_first
