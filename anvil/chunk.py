@@ -5,148 +5,7 @@ from .block import Block, OldBlock
 from .region import Region
 from .errors import OutOfBoundsCoordinates, ChunkNotFound
 from .versions import VERSION_21w43a, VERSION_20w17a, VERSION_19w36a, VERSION_17w47a, VERSION_PRE_15w32a
-
-
-def bin_append(a, b, length=None):
-    """
-    Appends number a to the left of b.
-
-    Parameters
-    ----------
-    a : int
-        Number to append on the left
-    b : int
-        Base number
-    length : int, optional
-        Bit length to use for shifting. If None, uses b.bit_length()
-
-    Returns
-    -------
-    int
-        Combined number with a appended to the left of b
-
-    Examples
-    --------
-    >>> bin_append(0b1, 0b10)
-    0b110
-    """
-    length = length or b.bit_length()
-    return (a << length) | b
-
-
-def nibble(byte_array, index):
-    """
-    Extract a nibble (4 bits) from a byte array at given index.
-
-    Parameters
-    ----------
-    byte_array : array-like
-        Array of bytes to extract nibble from
-    index : int
-        Index of the nibble to extract
-
-    Returns
-    -------
-    int
-        The nibble value (0-15)
-    """
-    value = byte_array[index // 2]
-    if index % 2:
-        return value >> 4
-    else:
-        return value & 0b1111
-
-
-def _palette_from_section(section: nbt.TAG_Compound) -> nbt.TAG_List:
-    """
-    Extract the block palette from a section NBT tag.
-
-    Parameters
-    ----------
-    section : nbt.TAG_Compound
-        The section NBT compound to extract palette from
-
-    Returns
-    -------
-    nbt.TAG_List
-        The palette list containing block definitions
-    """
-    if 'block_states' in section:
-        return section["block_states"]["palette"]
-    else:
-        return section["Palette"]
-
-
-def _states_from_section(section: nbt.TAG_Compound) -> list:
-    """
-    Extract block states array from a section NBT tag.
-
-    BlockStates is an array of 64 bit numbers that holds the blocks index on the palette list.
-    Makes sure the number is unsigned by adding 2^64 if negative.
-
-    Parameters
-    ----------
-    section : nbt.TAG_Compound
-        The section NBT compound to extract states from
-
-    Returns
-    -------
-    list
-        List of unsigned 64-bit integers representing block states
-    """
-    if 'block_states' in section:
-        states = section['block_states']['data']
-    else:
-        states = section['BlockStates']
-
-    return [state if state >= 0 else states + 2 ** 64
-        for state in states.value]
-
-def _calculate_blockstates_size(bits: int) -> int:
-    """
-    Calculate the number of longs needed for the given bits per block.
-
-    Minecraft requires each Y-level's data to be aligned, with some padding.
-
-    Parameters
-    ----------
-    bits : int
-        Number of bits per block
-
-    Returns
-    -------
-    int
-        Number of longs needed to store all block states
-    """
-    # Calculate longs needed for one Y-level (16x16 blocks)
-    bits_per_layer = 16 * 16 * bits
-    base_longs_per_layer = (bits_per_layer + 63) // 64  # ceil division
-    # Add padding (1/16 extra for alignment)
-    padded_longs_per_layer = (base_longs_per_layer * 17 + 15) // 16  # ceil(base * 1.0625)
-    # Multiply by 16 Y-levels
-    total_longs = padded_longs_per_layer * 16
-    return total_longs
-
-
-def _section_height_range(version: Optional[int]) -> range:
-    """
-    Get the valid section height range for a given Minecraft version.
-
-    Parameters
-    ----------
-    version : int, optional
-        Minecraft data version number
-
-    Returns
-    -------
-    range
-        Range object representing valid section Y indices
-        (range(-4, 20) for modern versions, range(16) for older versions)
-    """
-    if version > VERSION_17w47a:
-        return range(-4, 20)
-    else:
-        return range(16)
+from utilities import bin_append, nibble, palette_from_section, states_from_section, section_height_range
 
 
 class Chunk:
@@ -211,7 +70,7 @@ class Chunk:
         anvil.OutOfBoundsCoordinates
             If Y is not in range of 0 to 15
         """
-        section_range = _section_height_range(self.version)
+        section_range = section_height_range(self.version)
         if y not in section_range:
             raise OutOfBoundsCoordinates(f"Y ({y!r}) must be in range of "
                 f"{section_range.start} to {section_range.stop}")
@@ -244,7 +103,7 @@ class Chunk:
             section = self.get_section(section)
         if section is None:
             return
-        palette = _palette_from_section(section)
+        palette = palette_from_section(section)
         return tuple(Block.from_palette(i) for i in palette)
 
     def get_biome(self, x: int, y: int, z: int) -> Biome:
@@ -263,7 +122,7 @@ class Chunk:
 
         :rtype: :class:`anvil.Biome`
         """
-        section_range = _section_height_range(self.version)
+        section_range = section_height_range(self.version)
         if x not in range(16):
             raise OutOfBoundsCoordinates(f"X ({x!r}) must be in range of 0 to 15")
         if z not in range(16):
@@ -359,7 +218,7 @@ class Chunk:
             raise OutOfBoundsCoordinates(f"X ({x!r}) must be in range of 0 to 15")
         if z not in range(16):
             raise OutOfBoundsCoordinates(f"Z ({z!r}) must be in range of 0 to 15")
-        section_range = _section_height_range(self.version)
+        section_range = section_height_range(self.version)
         if y // 16 not in section_range:
             raise OutOfBoundsCoordinates(f"Y ({y!r}) must be in range of "
                 f"{section_range.start * 16} to {section_range.stop * 16 - 1}")
@@ -396,13 +255,13 @@ class Chunk:
         if section is None:
             return Block.from_name("minecraft:air")
         try:
-            states = _states_from_section(section)
+            states = states_from_section(section)
         except KeyError:
             return Block.from_name("minecraft:air")
             
         # Number of bits each block is on BlockStates
         # Cannot be lower than 4
-        palette = _palette_from_section(section)
+        palette = palette_from_section(section)
 
         bits = max((len(palette) - 1).bit_length(), 4)
 
@@ -481,7 +340,7 @@ class Chunk:
         """
 
         if isinstance(section, int):
-            section_range = _section_height_range(self.version)
+            section_range = section_height_range(self.version)
             if section not in section_range:
                 raise OutOfBoundsCoordinates(f"section ({section!r}) must be in range of "
                     f"{section_range.start} to {section_range.stop}")
@@ -520,13 +379,13 @@ class Chunk:
                 yield air
             return
         try:
-            states = _states_from_section(section)
+            states = states_from_section(section)
         except KeyError:
             for _ in range(4096):
                 yield air
             return
 
-        palette = _palette_from_section(section)
+        palette = palette_from_section(section)
         bits = max((len(palette) - 1).bit_length(), 4)
 
         stretches = self.version < VERSION_20w17a
@@ -581,7 +440,7 @@ class Chunk:
         ------
         :class:`anvil.Block`
         """
-        for section in _section_height_range(self.version):
+        for section in section_height_range(self.version):
             for block in self.stream_blocks(section=section):
                 yield block
 
@@ -618,7 +477,7 @@ class Chunk:
         if simplify:
             # Lightweight mode: only palette per section
             sections_data = []
-            section_range = _section_height_range(self.version)
+            section_range = section_height_range(self.version)
             for y in section_range:
                 section = self.get_section(y)
                 if section is not None:
@@ -630,7 +489,7 @@ class Chunk:
                         })
                         # Add data array with proper conversion
                         try:
-                            states = _states_from_section(section)
+                            states = states_from_section(section)
                             # Convert nbt values to standard Python integers
                             # and ensure unsigned representation
                             section_dict['data'] = [
@@ -646,7 +505,7 @@ class Chunk:
         else:
             # Full mode: detailed section data
             sections_data = []
-            section_range = _section_height_range(self.version)
+            section_range = section_height_range(self.version)
             for y in section_range:
                 section = self.get_section(y)
                 if section is not None:
@@ -707,7 +566,7 @@ class Chunk:
         if x not in range(16) or z not in range(16):
             raise OutOfBoundsCoordinates(f"X and Z must be in range 0-15, got X={x}, Z={z}")
         
-        section_range = _section_height_range(self.version)
+        section_range = section_height_range(self.version)
         for y in range(section_range.stop * 16 - 1, section_range.start * 16 - 1, -1):
             try:
                 block = self.get_block(x, y, z)
@@ -821,7 +680,7 @@ class Chunk:
         if not (0 <= z < 16):
             raise OutOfBoundsCoordinates(f"Z ({z!r}) must be in range of 0 to 15")
         
-        section_range = _section_height_range(self.version)
+        section_range = section_height_range(self.version)
         section_y = y // 16
         if section_y not in section_range:
             raise OutOfBoundsCoordinates(f"Y ({y!r}) must be in range of "
@@ -983,7 +842,7 @@ class Chunk:
         -------
         None
         """
-        palette = _palette_from_section(section)
+        palette = palette_from_section(section)
         block_states = section['block_states']
         
         # Find block in existing palette or add it
@@ -999,7 +858,7 @@ class Chunk:
         if block_index is None:
             block_index = self._add_block_to_palette(section, block)
             # Update the palette reference after adding
-            palette = _palette_from_section(section)
+            palette = palette_from_section(section)
         
         bits = max((len(palette) - 1).bit_length(), 4)
         if 'data' not in block_states:
@@ -1330,7 +1189,7 @@ class Chunk:
         if data is None:
             return None
 
-        palette = _palette_from_section(section)
+        palette = palette_from_section(section)
         bits = max((len(palette) - 1).bit_length(), 4)
 
         index = y * 256 + z * 16 + x
@@ -1501,7 +1360,7 @@ class Chunk:
         old_block_name = old_block.name()
         count = 0
         
-        section_range = _section_height_range(self.version)
+        section_range = section_height_range(self.version)
         
         for section_y in section_range:
             section = self.get_section(section_y)
@@ -1554,7 +1413,7 @@ class Chunk:
         if z not in range(16):
             raise OutOfBoundsCoordinates(f"Z ({z!r}) must be in range of 0 to 15")
 
-        section_range = _section_height_range(self.version)
+        section_range = section_height_range(self.version)
         section_y = y // 16
         if section_y not in section_range:
             raise OutOfBoundsCoordinates(f"Y ({y!r}) must be in range of "
@@ -1806,7 +1665,7 @@ class Chunk:
         >>> chunk.set_chunk_biome(Biome.from_name("minecraft:desert"))
         """
         biome_name = biome.name()
-        section_range = _section_height_range(self.version)
+        section_range = section_height_range(self.version)
         
         for section_y in section_range:
             section = self.get_section(section_y)

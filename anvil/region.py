@@ -1,13 +1,11 @@
 from typing import Tuple, Union, BinaryIO, Optional
 from nbt import nbt
 import zlib
-import os
 from io import BytesIO
 import anvil
 from .errors import GZipChunkData
 from .versions import VERSION_21w43a
 from .cache_manager import CacheManager
-import tempfile
 import gzip
 
 class Region:

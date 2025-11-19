@@ -1,6 +1,9 @@
 import os
 from typing import Dict, Tuple, Union, Optional, List
 import math
+
+from nbt import nbt
+
 from .region import Region
 from .empty_region import EmptyRegion
 from .chunk import Chunk
@@ -883,7 +886,7 @@ class World:
         figure_cls : class
             The class of the figure (e.g., Cube, Pyramid, Sphere, Spiral)
         blocks : list[Block]
-            List of block types to use
+            List of block types to use, applied randomly
         point : tuple[int, int, int]
             Starting point (x, y, z)
         size : tuple[int, int, int]
