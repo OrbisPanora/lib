@@ -315,7 +315,7 @@ class Region:
 
         Example
         -------
-        >>> region.replace_block_at(100, 64, 200, "minecraft:diamond_block", "r.0.0.mca")
+         region.replace_block_at(100, 64, 200, "minecraft:diamond_block", "r.0.0.mca")
         """
         chunk_x = x >> 4
         chunk_z = z >> 4
@@ -366,15 +366,15 @@ class Region:
 
         Examples
         --------
-        >>> # Replace in a single chunk
-        >>> count = region.replace_blocks("minecraft:stone", "minecraft:dirt", "r.0.0.mca", chunks=(5, 10))
+         # Replace in a single chunk
+         count = region.replace_blocks("minecraft:stone", "minecraft:dirt", "r.0.0.mca", chunks=(5, 10))
 
-        >>> # Replace in multiple chunks
-        >>> count = region.replace_blocks("minecraft:oak_log", "minecraft:birch_log", "r.0.0.mca",
+         # Replace in multiple chunks
+         count = region.replace_blocks("minecraft:oak_log", "minecraft:birch_log", "r.0.0.mca",
         ...                               chunks=[(0, 0), (1, 0), (0, 1)])
 
-        >>> # Replace in all chunks of the region
-        >>> count = region.replace_blocks("minecraft:sand", "minecraft:gravel", "r.0.0.mca")
+         # Replace in all chunks of the region
+         count = region.replace_blocks("minecraft:sand", "minecraft:gravel", "r.0.0.mca")
         """
         from typing import List
 
@@ -460,8 +460,8 @@ class Region:
             
         Example
         -------
-        >>> region = Region.from_file('r.0.0.mca')
-        >>> region.to_dict(include_chunks=True)
+         region = Region.from_file('r.0.0.mca')
+         region.to_dict(include_chunks=True)
         {'region_x': 0, 'region_z': 0, 'chunks': [[0, 0], [0, 1], ...]}
         """
         data = {
@@ -495,7 +495,7 @@ class Region:
         
         Example
         -------
-        >>> region.save('r.0.0.mca')
+         region.save('r.0.0.mca')
         """
         with open(file_path, 'wb') as f:
             f.write(self.data)
