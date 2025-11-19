@@ -6,6 +6,8 @@ import anvil
 from .errors import GZipChunkData
 from .versions import VERSION_21w43a
 from .cache_manager import CacheManager
+import tempfile
+import re
 import gzip
 
 class Region:
@@ -19,9 +21,9 @@ class Region:
     _chunk_cache: :class:`CacheManager` or None
         Optional LRU cache for loaded chunks
     """
-    __slots__ = ('data', '_chunk_cache')
+    __slots__ = ('data', '_chunk_cache', 'xpos', 'zpos')
     
-    def __init__(self, data: bytes, cache_size: Optional[int] = 64):
+    def __init__(self, data: bytes, cache_size: Optional[int] = 64, region_x: Optional[int] = None, region_z: Optional[int] = None):
         """
         Makes a Region object from data, which is the region file content
         
@@ -35,6 +37,9 @@ class Region:
         """
         self.data = data
         self._chunk_cache = CacheManager(max_size=cache_size) if cache_size else None
+
+        self.region_x: int = region_x
+        self.region_z: int = region_z
 
     @staticmethod
     def header_offset(chunk_x: int, chunk_z: int) -> int:
@@ -272,8 +277,15 @@ class Region:
             Default is 64 chunks.
         """
         if isinstance(file, str):
+            base = os.path.basename(file)
+            match = re.match(r"r\.(-?\d+)\.(-?\d+)\.mca$", base)
+            if not match:
+                raise ValueError(f"Invalid region file name: {filename}")
+
+            x = int(match.group(1))
+            z = int(match.group(2))
             with open(file, 'rb') as f:
-                return cls(data=f.read(), cache_size=cache_size)
+                return cls(data=f.read(), cache_size=cache_size, xpos=x, zpos=z)
         else:
             return cls(data=file.read(), cache_size=cache_size)
 

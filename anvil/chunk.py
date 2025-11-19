@@ -475,33 +475,37 @@ class Chunk:
         }
         
         if simplify:
-            # Lightweight mode: only palette per section
+            # Lightweight mode: only palette per section with data array
             sections_data = []
-            section_range = section_height_range(self.version)
+            section_range = _section_height_range(self.version)
+            
             for y in section_range:
                 section = self.get_section(y)
-                if section is not None:
-                    palette = self.get_palette(section)
-                    if palette:
-                        sections_data.append({
-                            'y': y,
-                            'palette': [block.name() for block in palette]
-                        })
-                        # Add data array with proper conversion
-                        try:
-                            states = states_from_section(section)
-                            # Convert nbt values to standard Python integers
-                            # and ensure unsigned representation
-                            section_dict['data'] = [
-                                int(state) if state >= 0 else int(state + 2**64) 
-                                for state in states
-                            ]
-                        except (KeyError, AttributeError):
-                            # if there is no data array, set it to empty list
-                            section_dict['data'] = []
-                        
-                        sections_data.append(section_dict)
+                if section is None:
+                    continue
+                    
+                palette = self.get_palette(section)
+                if not palette:
+                    continue
+                    
+                data_array = []
+                if 'block_states' in section:
+                    block_states = section['block_states']
+                    if 'data' in block_states:
+                        states = block_states['data'].value
+                        data_array = [int(state) if state >= 0 else int(state + 2**64) for state in states]
+                elif 'BlockStates' in section:
+                    states = section['BlockStates'].value
+                    data_array = [int(state) if state >= 0 else int(state + 2**64) for state in states]
+                
+                section_dict = {
+                    'y': y,
+                    'data': data_array,
+                    'palette': [block.name() for block in palette]
+                }
+                sections_data.append(section_dict)
             data['sections'] = sections_data
+            
         else:
             # Full mode: detailed section data
             sections_data = []
@@ -694,30 +698,17 @@ class Chunk:
         self._set_block_in_section(section, block, x, local_y, z)
     
     def set_palette_in_section(self, section: nbt.TAG_Compound, palette: nbt.TAG_List) -> None:
-        """
-        Set the palette in a section directly.
+        """Set the palette in a section directly."""
+        old_palette = self.get_palette(section)
+        if len(old_palette) != len(palette):
+            raise ValueError("New palette must have the same length as the old palette.")
+        if 'block_states' not in section:
+            section.tags.append(nbt.TAG_Compound(name='block_states'))
+        block_states = section['block_states']
 
-        Parameters
-        ----------
-        section : nbt.TAG_Compound
-            The section to modify
-        palette : nbt.TAG_List
-            The palette list to set
-
-        Returns
-        -------
-        None
-        """
-        if self.version >= VERSION_21w43a:
-            if 'block_states' not in section:
-                section.tags.append(nbt.TAG_Compound(name='block_states'))
-            block_states = section['block_states']
-            
-            block_states.tags.append(nbt.TAG_List(name='palette', type=nbt.TAG_Compound))
-            block_states['palette'] = palette
-        else:
-            section.tags.append(nbt.TAG_List(name='Palette', type=nbt.TAG_Compound))
-            section['Palette'] = palette
+        block_states.tags = [tag for tag in block_states.tags if tag.name != 'palette']
+        
+        block_states['palette'] = palette
 
     def _add_block_to_palette(self, section: nbt.TAG_Compound, block: Block) -> int:
         """
@@ -1331,63 +1322,49 @@ class Chunk:
             return False
 
     def replace_blocks(self, old_block: Union[str, Block], new_block: Union[str, Block]) -> int:
-        """
-        Replace all occurrences of a specific block type with another block type in the chunk.
-        
-        Parameters
-        ----------
-        old_block : Union[str, Block]
-            The block to replace (either a block name like "minecraft:stone" or a Block object)
-        new_block : Union[str, Block]
-            The replacement block (either a block name like "minecraft:dirt" or a Block object)
-        
-        Returns
-        -------
-        int
-            The number of blocks replaced
-        
-        Example
-        -------
-        >>> chunk.replace_blocks("minecraft:stone", "minecraft:dirt")
-        >>> chunk.replace_blocks(Block.from_name("minecraft:oak_log"), Block.from_name("minecraft:birch_log"))
-        """
+        """Replace all occurrences of a specific block type with another block type in the chunk."""
         # Convert strings to Block objects if needed
         if isinstance(old_block, str):
             old_block = Block.from_name(old_block)
         if isinstance(new_block, str):
             new_block = Block.from_name(new_block)
-        
+
         old_block_name = old_block.name()
+        old_props = old_block.properties
         count = 0
-        
-        section_range = section_height_range(self.version)
-        
+
+        section_range = _section_height_range(self.version)
+
         for section_y in section_range:
             section = self.get_section(section_y)
             if section is None:
                 continue
-            
-            # Iterate through all blocks in the section
+
             for local_y in range(16):
                 for z in range(16):
                     for x in range(16):
-                        # Calculate global Y coordinate
                         global_y = section_y * 16 + local_y
-                        
+
                         try:
                             current_block = self.get_block(x, global_y, z)
-                            
-                            # Check if block matches (name and properties if specified)
-                            if current_block.name() == old_block_name:
-                                if not old_block.properties or current_block.properties == old_block.properties:
-                                    if self.replace_block_at(x, global_y, z, new_block):
-                                        count += 1
-                        except (IndexError, OutOfBoundsCoordinates):
-                            # Skip blocks that can't be accessed
-                            continue
-        
-        return count
 
+                            # Check if block name matches
+                            if current_block.name() != old_block_name:
+                                continue
+
+                            # If old_block has no properties, match any variant
+                            # Otherwise, check if properties match
+                            if old_props and current_block.properties != old_props:
+                                continue
+
+                            # Replace the block
+                            if self.replace_block_at(x, global_y, z, new_block):
+                                count += 1
+
+                        except (IndexError, OutOfBoundsCoordinates):
+                            continue
+
+        return count
 
     def set_biome(self, biome: Biome, x: int, y: int, z: int) -> None:
         """
