@@ -57,9 +57,9 @@ class World:
             
         Example
         -------
-        >>> world = World(r'C:\\path\\to\\world')  # Overworld
-        >>> nether = World(r'C:\\path\\to\\world', dimension='nether')
-        >>> end = World(r'C:\\path\\to\\world', dimension='end')
+         world = World(r'C:\\path\\to\\world')  # Overworld
+         nether = World(r'C:\\path\\to\\world', dimension='nether')
+         end = World(r'C:\\path\\to\\world', dimension='end')
         """
         if dimension not in self.DIMENSIONS:
             raise ValueError(f"Invalid dimension '{dimension}'. Must be one of: {list(self.DIMENSIONS.keys())}")
@@ -332,8 +332,8 @@ class World:
             
         Example
         -------
-        >>> biome = world.get_biome(100, 64, -50)
-        >>> print(biome.name())
+         biome = world.get_biome(100, 64, -50)
+         print(biome.name())
         """
         chunk_x = x >> 4  
         chunk_z = z >> 4  
@@ -368,8 +368,8 @@ class World:
             
         Example
         -------
-        >>> from anvil import Biome
-        >>> world.set_biome(Biome.from_name("minecraft:desert"), 100, 64, -50)
+         from anvil import Biome
+         world.set_biome(Biome.from_name("minecraft:desert"), 100, 64, -50)
         """
         chunk_x = x >> 4  
         chunk_z = z >> 4  
@@ -404,8 +404,8 @@ class World:
             
         Example
         -------
-        >>> from anvil import Biome
-        >>> world.set_chunk_biome(Biome.from_name("minecraft:ice_spikes"), 5, -3)
+         from anvil import Biome
+         world.set_chunk_biome(Biome.from_name("minecraft:ice_spikes"), 5, -3)
         """
         chunk = self.get_chunk(chunk_x, chunk_z)
         if chunk is None:
@@ -431,8 +431,8 @@ class World:
             
         Example
         -------
-        >>> from anvil import Biome
-        >>> world.set_section_biome(Biome.from_name("minecraft:jungle"), 5, -3, 4)
+         from anvil import Biome
+         world.set_section_biome(Biome.from_name("minecraft:jungle"), 5, -3, 4)
         """
         chunk = self.get_chunk(chunk_x, chunk_z)
         if chunk is None:
@@ -480,8 +480,8 @@ class World:
             
         Example
         -------
-        >>> from anvil import Biome
-        >>> world.set_region_biome(Biome.from_name("minecraft:plains"), 0, 0)
+         from anvil import Biome
+         world.set_region_biome(Biome.from_name("minecraft:plains"), 0, 0)
         """
         region = self.get_region(region_x, region_z)
         
@@ -526,8 +526,8 @@ class World:
 
         Example
         -------
-        >>> world.replace_block_at(100, 64, -50, "minecraft:diamond_block")
-        >>> world.replace_block_at(100, 64, -50, Block.from_name("minecraft:stone"))
+         world.replace_block_at(100, 64, -50, "minecraft:diamond_block")
+         world.replace_block_at(100, 64, -50, Block.from_name("minecraft:stone"))
         """
         region_x = x >> 9
         region_z = z >> 9
@@ -563,8 +563,8 @@ class World:
         
         Example
         -------
-        >>> world.replace_blocks("minecraft:stone", "minecraft:dirt")
-        >>> world.replace_blocks(Block.from_name("minecraft:oak_log"), Block.from_name("minecraft:birch_log"), 
+         world.replace_blocks("minecraft:stone", "minecraft:dirt")
+         world.replace_blocks(Block.from_name("minecraft:oak_log"), Block.from_name("minecraft:birch_log"), 
         ...                     bounds=(0, 60, 0, 100, 70, 100))
         """
         # Convert strings to Block objects if needed
@@ -657,7 +657,7 @@ class World:
         
         Example
         -------
-        >>> count = world.replace_blocks_in_area("minecraft:stone", "minecraft:dirt", 
+         count = world.replace_blocks_in_area("minecraft:stone", "minecraft:dirt", 
         ...                                      0, 60, 0, 100, 70, 100)
         """
         bounds = (min(x1, x2), min(y1, y2), min(z1, z2), max(x1, x2), max(y1, y2), max(z1, z2))
@@ -681,7 +681,7 @@ class World:
         
         Example
         -------
-        >>> for x, y, z, block in world.stream_blocks(0, 60, 0, 10, 65, 10):
+         for x, y, z, block in world.stream_blocks(0, 60, 0, 10, 65, 10):
         ...     if block.name() == "minecraft:stone":
         ...         print(f"Found stone at {x}, {y}, {z}")
         """
@@ -736,7 +736,7 @@ class World:
         
         Example
         -------
-        >>> for chunk_x, chunk_z, chunk in world.stream_chunks(-10, -10, 10, 10):
+         for chunk_x, chunk_z, chunk in world.stream_chunks(-10, -10, 10, 10):
         ...     if chunk:
         ...         print(f"Found chunk at {chunk_x}, {chunk_z}")
         """
@@ -824,8 +824,8 @@ class World:
         
         Example
         -------
-        >>> stone_count = world.count_blocks("minecraft:stone")
-        >>> dirt_count = world.count_blocks("minecraft:dirt", (0, 60, 0, 100, 70, 100))
+         stone_count = world.count_blocks("minecraft:stone")
+         dirt_count = world.count_blocks("minecraft:dirt", (0, 60, 0, 100, 70, 100))
         """
         if isinstance(block, str):
             block = Block.from_name(block)
@@ -908,11 +908,11 @@ class World:
 
         Example
         -------
-        >>> changes = {
+         changes = {
         ...     (100, 64, 200): Block.from_name("minecraft:stone"),
         ...     (101, 64, 200): Block.from_name("minecraft:dirt")
         ... }
-        >>> world.apply(changes)
+         world.apply(changes)
         """
         for k, v in dictionary.items():
             self.set_block(v, k[0], k[1], k[2])
@@ -1003,8 +1003,8 @@ class World:
         
         Example
         -------
-        >>> count = world.replace_biomes("minecraft:desert", "minecraft:plains")
-        >>> count = world.replace_biomes(Biome('desert'), Biome('plains'), bounds=(0, 60, 0, 100, 70, 100))
+         count = world.replace_biomes("minecraft:desert", "minecraft:plains")
+         count = world.replace_biomes(Biome('desert'), Biome('plains'), bounds=(0, 60, 0, 100, 70, 100))
        
         if isinstance(old_biome, str):
             old_biome = Biome.from_name(old_biome)
@@ -1064,8 +1064,8 @@ class World:
         
         Example
         -------
-        >>> positions = world.find_blocks("minecraft:diamond_ore", limit=10)
-        >>> for x, y, z in positions:
+         positions = world.find_blocks("minecraft:diamond_ore", limit=10)
+         for x, y, z in positions:
         ...     print(f"Found diamond ore at {x}, {y}, {z}")
         """
         if isinstance(block, str):
@@ -1112,8 +1112,8 @@ class World:
         
         Example
         -------
-        >>> result = world.find_nearest_block("minecraft:diamond_ore", 100, 64, 200)
-        >>> if result:
+         result = world.find_nearest_block("minecraft:diamond_ore", 100, 64, 200)
+         if result:
         ...     x, y, z, distance = result
         ...     print(f"Found at {x}, {y}, {z}, distance: {distance:.2f}")
         """
@@ -1155,8 +1155,8 @@ class World:
         
         Example
         -------
-        >>> distribution = world.scan_area(0, 60, 0, 16, 70, 16)
-        >>> for block_name, count in distribution.items():
+         distribution = world.scan_area(0, 60, 0, 16, 70, 16)
+         for block_name, count in distribution.items():
         ...     print(f"{block_name}: {count}")
         """
         distribution = {}
@@ -1189,7 +1189,7 @@ class World:
         
         Example
         -------
-        >>> world.unload_region(0, 0, save=True)
+         world.unload_region(0, 0, save=True)
         """
         region_coords = (region_x, region_z)
         
@@ -1228,8 +1228,8 @@ class World:
         
         Example
         -------
-        >>> count = world.unload_all_regions(save=True)
-        >>> print(f"Unloaded {count} regions")
+         count = world.unload_all_regions(save=True)
+         print(f"Unloaded {count} regions")
         """
         region_coords_list = list(self.regions.keys())
         count = 0
@@ -1251,9 +1251,9 @@ class World:
         
         Example
         -------
-        >>> stats = world.get_memory_usage()
-        >>> print(f"Loaded regions: {stats['loaded_regions']}")
-        >>> print(f"Cached chunks: {stats['cached_chunks']}")
+         stats = world.get_memory_usage()
+         print(f"Loaded regions: {stats['loaded_regions']}")
+         print(f"Cached chunks: {stats['cached_chunks']}")
         """
         return {
             'loaded_regions': len(self.regions),
@@ -1275,9 +1275,9 @@ class World:
         
         Example
         -------
-        >>> info = world.get_world_info()
-        >>> print(f"World folder: {info['world_folder']}")
-        >>> print(f"Loaded regions: {info['loaded_regions']}")
+         info = world.get_world_info()
+         print(f"World folder: {info['world_folder']}")
+         print(f"Loaded regions: {info['loaded_regions']}")
         """
         bounds = self.get_world_bounds()
         
@@ -1313,8 +1313,8 @@ class World:
         
         Example
         -------
-        >>> distribution = world.get_block_distribution(top_n=10)
-        >>> for block_name, count in distribution.items():
+         distribution = world.get_block_distribution(top_n=10)
+         for block_name, count in distribution.items():
         ...     print(f"{block_name}: {count}")
         """
         if bounds:
@@ -1357,8 +1357,8 @@ class World:
         
         Example
         -------
-        >>> height = world.get_height_map(100, 200)
-        >>> print(f"Surface height at (100, 200): {height}")
+         height = world.get_height_map(100, 200)
+         print(f"Surface height at (100, 200): {height}")
         """
         step = 1 if end_y > start_y else -1
         
@@ -1382,7 +1382,7 @@ class World:
         
         Example
         -------
-        >>> world.create_pattern(0, 64, 0, 'pattern.json')
+         world.create_pattern(0, 64, 0, 'pattern.json')
         """
         for block in pattern.blocks:
             palette_index = block[1]
@@ -1418,9 +1418,9 @@ class World:
         
         Example
         -------
-        >>> # Copy a 10x10x10 area
-        >>> count = world.copy_area(0, 64, 0, 10, 74, 10, 100, 64, 100)
-        >>> print(f"Copied {count} blocks")
+         # Copy a 10x10x10 area
+         count = world.copy_area(0, 64, 0, 10, 74, 10, 100, 64, 100)
+         print(f"Copied {count} blocks")
         """
         count = 0
         offset_x = dest_x - src_x1
@@ -1459,9 +1459,9 @@ class World:
         
         Example
         -------
-        >>> # Fill a 10x10x10 cube with stone
-        >>> count = world.fill_area("minecraft:stone", 0, 64, 0, 10, 74, 10)
-        >>> print(f"Placed {count} blocks")
+         # Fill a 10x10x10 cube with stone
+         count = world.fill_area("minecraft:stone", 0, 64, 0, 10, 74, 10)
+         print(f"Placed {count} blocks")
         """
         if isinstance(block, str):
             block = Block.from_name(block)
@@ -1497,8 +1497,8 @@ class World:
         
         Example
         -------
-        >>> count = world.clear_area(0, 64, 0, 10, 74, 10)
-        >>> print(f"Cleared {count} blocks")
+         count = world.clear_area(0, 64, 0, 10, 74, 10)
+         print(f"Cleared {count} blocks")
         """
         return self.fill_area("minecraft:air", x1, y1, z1, x2, y2, z2)
     
@@ -1515,9 +1515,9 @@ class World:
         
         Example
         -------
-        >>> world = World(r'C:\\path\\to\\world')
-        >>> world.switch_dimension('nether')
-        >>> world.switch_dimension('end', save_current=True)
+         world = World(r'C:\\path\\to\\world')
+         world.switch_dimension('nether')
+         world.switch_dimension('end', save_current=True)
         """
         if dimension not in self.DIMENSIONS:
             raise ValueError(f"Invalid dimension '{dimension}'. Must be one of: {list(self.DIMENSIONS.keys())}")
@@ -1549,8 +1549,8 @@ class World:
         
         Example
         -------
-        >>> dim = world.get_dimension()
-        >>> print(f"Current dimension: {dim}")
+         dim = world.get_dimension()
+         print(f"Current dimension: {dim}")
         """
         return self.dimension
     
@@ -1565,9 +1565,9 @@ class World:
         
         Example
         -------
-        >>> info = world.get_dimension_info()
-        >>> print(f"Dimension: {info['name']}")
-        >>> print(f"Path: {info['path']}")
+         info = world.get_dimension_info()
+         print(f"Dimension: {info['name']}")
+         print(f"Path: {info['path']}")
         """
         return {
             'name': self.dimension,
@@ -1601,8 +1601,8 @@ class World:
             
         Example
         -------
-        >>> data = world.get_chunk_data(0, 0, mode='heightmap')
-        >>> print(data['heightmap'])
+         data = world.get_chunk_data(0, 0, mode='heightmap')
+         print(data['heightmap'])
         [[64, 65, 64, ...], ...]
         """
         chunk = self.get_chunk(chunk_x, chunk_z)
@@ -1656,8 +1656,8 @@ class World:
             
         Example
         -------
-        >>> heightmap = world.get_area_heightmap(0, 0, 64, 64)
-        >>> print(heightmap['width'], heightmap['height'])
+         heightmap = world.get_area_heightmap(0, 0, 64, 64)
+         print(heightmap['width'], heightmap['height'])
         65 65
         """
         min_x, min_z = min(x1, x2), min(z1, z2)
@@ -1718,8 +1718,8 @@ class World:
             
         Example
         -------
-        >>> tile = world.get_tile_data(0, 0, tile_size=16)
-        >>> print(f"Tile contains {len(tile['chunks'])} chunks")
+         tile = world.get_tile_data(0, 0, tile_size=16)
+         print(f"Tile contains {len(tile['chunks'])} chunks")
         """
         start_chunk_x = tile_x * tile_size
         start_chunk_z = tile_z * tile_size
