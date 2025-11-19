@@ -1215,26 +1215,7 @@ class Chunk:
             return False
 
     def replace_blocks(self, old_block: Union[str, Block], new_block: Union[str, Block]) -> int:
-        """
-        Replace all occurrences of a specific block type with another block type in the chunk.
-
-        Parameters
-        ----------
-        old_block : Union[str, Block]
-            The block to replace (either a block name like "minecraft:stone" or a Block object)
-        new_block : Union[str, Block]
-            The replacement block (either a block name like "minecraft:dirt" or a Block object)
-
-        Returns
-        -------
-        int
-            The number of blocks replaced
-
-        Example
-        -------
-        >>> chunk.replace_blocks("minecraft:stone", "minecraft:dirt")
-        >>> chunk.replace_blocks(Block.from_name("minecraft:oak_log"), Block.from_name("minecraft:birch_log"))
-        """
+        """Replace all occurrences of a specific block type with another block type in the chunk."""
         # Convert strings to Block objects if needed
         if isinstance(old_block, str):
             old_block = Block.from_name(old_block)
@@ -1242,6 +1223,7 @@ class Chunk:
             new_block = Block.from_name(new_block)
 
         old_block_name = old_block.name()
+        old_props = old_block.properties
         count = 0
 
         section_range = _section_height_range(self.version)
@@ -1251,20 +1233,28 @@ class Chunk:
             if section is None:
                 continue
 
-            # Iterate through all blocks in the section
             for local_y in range(16):
                 for z in range(16):
                     for x in range(16):
-                        try:
-                            current_block = self.get_block(x, local_y, z, section=section)
+                        global_y = section_y * 16 + local_y
 
-                            if current_block.name() == old_block_name:
-                                if not old_block.properties or current_block.properties == old_block.properties:
-                                    global_y = section_y * 16 + local_y
-                                    if self.replace_block_at(x, global_y, z, new_block):
-                                        count += 1
+                        try:
+                            current_block = self.get_block(x, global_y, z)
+
+                            # Check if block name matches
+                            if current_block.name() != old_block_name:
+                                continue
+
+                            # If old_block has no properties, match any variant
+                            # Otherwise, check if properties match
+                            if old_props and current_block.properties != old_props:
+                                continue
+
+                            # Replace the block
+                            if self.replace_block_at(x, global_y, z, new_block):
+                                count += 1
+
                         except (IndexError, OutOfBoundsCoordinates):
-                            # Skip blocks that can't be accessed
                             continue
 
         return count
