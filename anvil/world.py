@@ -1,7 +1,6 @@
 import os
 from typing import Dict, Tuple, Union, Optional, List
 import math
-
 from nbt import nbt
 
 from .region import Region
@@ -980,93 +979,8 @@ class World:
         """
         if self._region_cache is not None:
             self._region_cache.invalidate((region_x, region_z))
-    
 
-    
-    def get_biome(self, x: int, y: int, z: int) -> Optional[Biome]:
-        """
-        Get a biome at the specified global coordinates.
-        
-        Parameters
-        ----------
-        x : int
-            Global X coordinate
-        y : int
-            Global Y coordinate
-        z : int
-            Global Z coordinate
-            
-        Returns
-        -------
-        Optional[Biome]
-            The biome at the specified coordinates, or None if not found
-        
-        Example
-        -------
-        >>> biome = world.get_biome(100, 64, 200)
-        >>> print(biome.name())
-        """
-        chunk_x = x >> 4
-        chunk_z = z >> 4
-        
-        chunk = self.get_chunk(chunk_x, chunk_z)
-        if chunk is None:
-            return None
-        
-        local_x = x & 15
-        local_z = z & 15
-        
-        try:
-            return chunk.get_biome(local_x, y, local_z)
-        except:
-            return None
-    
-    def set_biome(self, biome: Biome, x: int, y: int, z: int) -> None:
-        """
-        Set a biome at the specified global coordinates.
-        
-        Parameters
-        ----------
-        biome : Biome
-            The biome to set
-        x : int
-            Global X coordinate
-        y : int
-            Global Y coordinate
-        z : int
-            Global Z coordinate
-        
-        Example
-        -------
-        >>> from anvil import Biome
-        >>> world.set_biome(Biome('desert'), 100, 64, 200)
-        """
-        chunk_x = x >> 4
-        chunk_z = z >> 4
-        
-        chunk = self.get_chunk(chunk_x, chunk_z)
-        if chunk is None:
-            # Create new chunk if needed
-            region_x = chunk_x >> 5
-            region_z = chunk_z >> 5
-            region = self.get_region(region_x, region_z)
-            if isinstance(region, EmptyRegion):
-                empty_chunk = EmptyChunk(chunk_x, chunk_z)
-                region.add_chunk(empty_chunk)
-                chunk = empty_chunk
-        
-        local_x = x & 15
-        local_z = z & 15
 
-        try:
-            # Chunk utilise (biome, x, y, z), EmptyChunk utilise (biome, x, z)
-            if isinstance(chunk, EmptyChunk):
-                chunk.set_biome(biome, local_x, local_z)
-            else:
-                chunk.set_biome(biome, local_x, y, local_z)
-        except Exception as e:
-            print(f"Failed to set biome at ({x}, {y}, {z}): {e}")
-    
     """def replace_biomes(self, old_biome: Union[str, Biome], new_biome: Union[str, Biome],
                        bounds: Optional[Tuple[int, int, int, int, int, int]] = None) -> int:
         
@@ -1825,32 +1739,4 @@ class World:
             'start_chunk_z': start_chunk_z,
             'chunks': chunks_data,
             'chunk_count': len(chunks_data)
-        }
-    
-    def get_world_info(self) -> dict:
-        """
-        Get comprehensive world information for the API/viewer.
-        Includes bounds, dimension, loaded regions, cache stats, etc.
-        
-        Returns
-        -------
-        dict
-            Dictionary with world metadata
-            
-        Example
-        -------
-        >>> info = world.get_world_info()
-        >>> print(f"World dimension: {info['dimension']}")
-        >>> print(f"Bounds: {info['bounds']}")
-        """
-        bounds = self.get_world_bounds()
-        
-        return {
-            'dimension': self.dimension,
-            'world_folder': self.world_folder,
-            'region_dir': self.region_dir,
-            'bounds': bounds,
-            'loaded_regions': len(self.regions),
-            'region_list': self.get_loaded_regions(),
-            'cache_stats': self.get_cache_stats()
         }
