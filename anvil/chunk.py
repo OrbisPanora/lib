@@ -1217,19 +1217,19 @@ class Chunk:
     def replace_blocks(self, old_block: Union[str, Block], new_block: Union[str, Block]) -> int:
         """
         Replace all occurrences of a specific block type with another block type in the chunk.
-        
+
         Parameters
         ----------
         old_block : Union[str, Block]
             The block to replace (either a block name like "minecraft:stone" or a Block object)
         new_block : Union[str, Block]
             The replacement block (either a block name like "minecraft:dirt" or a Block object)
-        
+
         Returns
         -------
         int
             The number of blocks replaced
-        
+
         Example
         -------
         >>> chunk.replace_blocks("minecraft:stone", "minecraft:dirt")
@@ -1240,38 +1240,34 @@ class Chunk:
             old_block = Block.from_name(old_block)
         if isinstance(new_block, str):
             new_block = Block.from_name(new_block)
-        
+
         old_block_name = old_block.name()
         count = 0
-        
+
         section_range = _section_height_range(self.version)
-        
+
         for section_y in section_range:
             section = self.get_section(section_y)
             if section is None:
                 continue
-            
+
             # Iterate through all blocks in the section
             for local_y in range(16):
                 for z in range(16):
                     for x in range(16):
-                        # Calculate global Y coordinate
-                        global_y = section_y * 16 + local_y
-                        
                         try:
-                            current_block = self.get_block(x, global_y, z)
-                            
-                            # Check if block matches (name and properties if specified)
+                            current_block = self.get_block(x, local_y, z, section=section)
+
                             if current_block.name() == old_block_name:
                                 if not old_block.properties or current_block.properties == old_block.properties:
+                                    global_y = section_y * 16 + local_y
                                     if self.replace_block_at(x, global_y, z, new_block):
                                         count += 1
                         except (IndexError, OutOfBoundsCoordinates):
                             # Skip blocks that can't be accessed
                             continue
-        
-        return count
 
+        return count
 
     def set_biome(self, biome: Biome, x: int, y: int, z: int) -> None:
         """
