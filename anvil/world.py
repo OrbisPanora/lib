@@ -1,6 +1,9 @@
 import os
 from typing import Dict, Tuple, Union, Optional, List
 import math
+
+from nbt import nbt
+
 from .region import Region
 from .empty_region import EmptyRegion
 from .chunk import Chunk
@@ -883,7 +886,7 @@ class World:
         figure_cls : class
             The class of the figure (e.g., Cube, Pyramid, Sphere, Spiral)
         blocks : list[Block]
-            List of block types to use
+            List of block types to use, applied randomly
         point : tuple[int, int, int]
             Starting point (x, y, z)
         size : tuple[int, int, int]
@@ -1471,14 +1474,13 @@ class World:
             palette_index = block[1]
             if not self.is_in_palette_section(pattern.palette[palette_index], block[0][0]+x, block[0][1]+y, block[0][2]+z):
                 self.add_block_to_palette(pattern.palette[palette_index], block[0][0]+x, block[0][1]+y, block[0][2]+z)
-        for block in self.blocks:
+        for block in pattern.blocks:
             palette_index = block[1]
-            if palette_index >= len(self.palette):
+            if palette_index >= len(pattern.palette):
                 air_block = Block.from_name("minecraft:air")
                 self.set_block(air_block, block[0][0]+x, block[0][1]+y, block[0][2]+z)
                 continue
             self.set_block(pattern.palette[palette_index], block[0][0]+x, block[0][1]+y, block[0][2]+z)
-        self.save()
     
     def copy_area(self, src_x1: int, src_y1: int, src_z1: int,
                   src_x2: int, src_y2: int, src_z2: int,

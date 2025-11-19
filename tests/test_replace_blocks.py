@@ -7,7 +7,7 @@ class TestReplaceBlocks:
 
     def test_chunk_replace_block_at(self, tmp_path):
         original_file = os.path.join(os.path.dirname(__file__), 'world_files', 'r.0.0.mca')
-        test_file = tmp_path / "test_chunk_replace.mca"
+        test_file = tmp_path / "r.0.0.mca"
         shutil.copy(original_file, test_file)
 
         region = Region.from_file(str(test_file))
@@ -31,7 +31,7 @@ class TestReplaceBlocks:
 
     def test_chunk_replace_blocks(self, tmp_path):
         original_file = os.path.join(os.path.dirname(__file__), 'world_files', 'r.0.0.mca')
-        test_file = tmp_path / "test_chunk_replace_all.mca"
+        test_file = tmp_path / "r.0.0.mca"
         shutil.copy(original_file, test_file)
 
         region = Region.from_file(str(test_file))
@@ -48,7 +48,7 @@ class TestReplaceBlocks:
 
     def test_region_replace_block_at(self, tmp_path):
         original_file = os.path.join(os.path.dirname(__file__), 'world_files', 'r.0.0.mca')
-        test_file = tmp_path / "test_region_replace.mca"
+        test_file = tmp_path / "r.0.0.mca"
         shutil.copy(original_file, test_file)
 
         region = Region.from_file(str(test_file))
@@ -66,7 +66,7 @@ class TestReplaceBlocks:
 
     def test_region_replace_blocks_in_chunk(self, tmp_path):
         original_file = os.path.join(os.path.dirname(__file__), 'world_files', 'r.0.0.mca')
-        test_file = tmp_path / "test_region_replace_chunks.mca"
+        test_file = tmp_path / "r.0.0.mca"
         shutil.copy(original_file, test_file)
 
         region = Region.from_file(str(test_file))
@@ -77,7 +77,7 @@ class TestReplaceBlocks:
 
     def test_region_replace_blocks_in_multiple_chunks(self, tmp_path):
         original_file = os.path.join(os.path.dirname(__file__), 'world_files', 'r.0.0.mca')
-        test_file = tmp_path / "test_region_replace_multi.mca"
+        test_file = tmp_path / "r.0.0.mca"
         shutil.copy(original_file, test_file)
 
         region = Region.from_file(str(test_file))
@@ -88,7 +88,7 @@ class TestReplaceBlocks:
 
     def test_replace_with_block_object(self, tmp_path):
         original_file = os.path.join(os.path.dirname(__file__), 'world_files', 'r.0.0.mca')
-        test_file = tmp_path / "test_block_objects.mca"
+        test_file = tmp_path / "r.0.0.mca"
         shutil.copy(original_file, test_file)
 
         region = Region.from_file(str(test_file))
