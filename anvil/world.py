@@ -10,7 +10,7 @@ from .block import Block
 from .biome import Biome
 from .errors import OutOfBoundsCoordinates
 from .cache_manager import CacheManager
-from utilities import is_block_in_palette
+from .utilities import is_block_in_palette
 
 class World:
     """

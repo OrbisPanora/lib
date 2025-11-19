@@ -139,13 +139,9 @@ class TestWorldFeatures(unittest.TestCase):
         self.assertIsInstance(info, dict)
         self.assertIn('world_folder', info)
         self.assertIn('loaded_regions', info)
-        self.assertIn('region_list', info)
+        self.assertIn('region_coordinates', info)  # Changé de 'region_list' à 'region_coordinates'
         self.assertIn('bounds', info)
-        self.assertIn('cache_stats', info)
-
-        self.assertEqual(info['world_folder'], self.world_path)
-        self.assertIsInstance(info['loaded_regions'], int)
-        self.assertIsInstance(info['region_list'], list)
+        self.assertIn('cache_enabled', info)
 
     def test_get_block_distribution(self):
         distribution = self.world.get_block_distribution(

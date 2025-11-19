@@ -7,7 +7,7 @@ class TestBiomeAndBlockOperations:
 
     def test_set_chunk_biome(self, tmp_path):
         original_file = os.path.join(os.path.dirname(__file__), 'world_files', 'r.0.0.mca')
-        test_file = tmp_path / "test_set_chunk_biome.mca"
+        test_file = tmp_path / "r.0.0.mca"
         shutil.copy(original_file, test_file)
 
         region = Region.from_file(str(test_file))
@@ -30,7 +30,7 @@ class TestBiomeAndBlockOperations:
 
     def test_set_single_biome_cell(self, tmp_path):
         original_file = os.path.join(os.path.dirname(__file__), 'world_files', 'r.0.0.mca')
-        test_file = tmp_path / "test_set_single_biome_cell.mca"
+        test_file = tmp_path / "r.0.0.mca"
         shutil.copy(original_file, test_file)
 
         region = Region.from_file(str(test_file))
