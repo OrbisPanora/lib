@@ -408,57 +408,8 @@ class World:
             raise OutOfBoundsCoordinates("Chunk does not exist")
         
         chunk.set_chunk_biome(biome)
-
-    def set_section_biome(self, biome: Biome, chunk_x: int, chunk_z: int, section_y: int) -> None:
-        """
-        Set an entire section to a single biome within a chunk.
-        
-        Parameters
-        ----------
-        biome: Biome
-            The biome to set for the entire section
-        chunk_x: int
-            Chunk X coordinate
-        chunk_z: int
-            Chunk Z coordinate
-        section_y: int
-            Section Y index (e.g., -4 to 19 for standard world height)
-            
-        Example
-        -------
-         from anvil import Biome
-         world.set_section_biome(Biome.from_name("minecraft:jungle"), 5, -3, 4)
-        """
-        from nbt import nbt
-        chunk = self.get_chunk(chunk_x, chunk_z)
-        if chunk is None:
-            raise OutOfBoundsCoordinates("Chunk does not exist")
-        
-        section = chunk.get_section(section_y)
-        if section is None:
-            section = chunk.create_section(section_y)
-        
-        biome_name = biome.name()
-        
-        # Create or update biomes structure in section
-        if 'biomes' not in section:
-            biomes_data = nbt.TAG_Compound(name='biomes')
-            palette = nbt.TAG_List(name='palette', type=nbt.TAG_String)
-            palette.tags.append(nbt.TAG_String(value=biome_name))
-            biomes_data.tags.append(palette)
-            section.tags.append(biomes_data)
-        else:
-            biomes_data = section['biomes']
-            palette = biomes_data['palette']
-            
-            # Reset palette to single biome
-            palette.tags.clear()
-            palette.tags.append(nbt.TAG_String(value=biome_name))
-            
-            # Remove data array if present (not needed for uniform biome)
-            biomes_data.tags[:] = [tag for tag in biomes_data.tags if tag.name != 'data']
-        
-
+        self.save()
+    
     def set_region_biome(self, biome: Biome, region_x: int, region_z: int) -> None:
         """
         Set all chunks in a region to a single biome.
@@ -475,27 +426,14 @@ class World:
         Example
         -------
          from anvil import Biome
-         world.set_region_biome(Biome.from_name("minecraft:plains"), 0, 0)
+         world.set_region_biome(Biome.from_name("minecraft:ice_spikes"), 0, 0)
         """
         region = self.get_region(region_x, region_z)
+        if region is None:
+            raise OutOfBoundsCoordinates("Region does not exist")
         
-        # Iterate through all possible chunks in the region
-        for chunk_x in range(32):
-            for chunk_z in range(32):
-                try:
-                    if isinstance(region, Region):
-                        chunk = region.get_chunk(chunk_x, chunk_z)
-                    else:
-                        # Calculate global chunk coordinates for EmptyRegion
-                        global_chunk_x = region_x * 32 + chunk_x
-                        global_chunk_z = region_z * 32 + chunk_z
-                        chunk = region.get_chunk(global_chunk_x, global_chunk_z)
-                    
-                    if chunk is not None:
-                        chunk.set_chunk_biome(biome)
-                except:
-                    continue
-        
+        region_file = os.path.join(self.region_dir, f'r.{region_x}.{region_z}.mca')
+        region.set_region_biome(biome, region_file)
 
     def replace_block_at(self, x: int, y: int, z: int, new_block: Union[str, Block]) -> bool:
         """
@@ -973,67 +911,6 @@ class World:
         if self._region_cache is not None:
             self._region_cache.invalidate((region_x, region_z))
 
-
-    """def replace_biomes(self, old_biome: Union[str, Biome], new_biome: Union[str, Biome],
-                       bounds: Optional[Tuple[int, int, int, int, int, int]] = None) -> int:
-        
-        Replace all occurrences of a specific biome with another biome.
-        
-        Parameters
-        ----------
-        old_biome : Union[str, Biome]
-            The biome to replace (either a biome name like "minecraft:desert" or a Biome object)
-        new_biome : Union[str, Biome]
-            The replacement biome (either a biome name like "minecraft:plains" or a Biome object)
-        bounds : Optional[Tuple[int, int, int, int, int, int]]
-            Bounding box as (min_x, min_y, min_z, max_x, max_y, max_z)
-            If None, replaces biomes in the entire world
-        
-        Returns
-        -------
-        int
-            The number of biomes replaced
-        
-        Example
-        -------
-         count = world.replace_biomes("minecraft:desert", "minecraft:plains")
-         count = world.replace_biomes(Biome('desert'), Biome('plains'), bounds=(0, 60, 0, 100, 70, 100))
-       
-        if isinstance(old_biome, str):
-            old_biome = Biome.from_name(old_biome)
-        if isinstance(new_biome, str):
-            new_biome = Biome.from_name(new_biome)
-        
-        old_biome_name = old_biome.name()
-        count = 0
-        
-        if bounds:
-            x1, y1, z1, x2, y2, z2 = bounds
-            for x, y, z, block in self.stream_blocks(x1, y1, z1, x2, y2, z2):
-                try:
-                    current_biome = self.get_biome(x, y, z)
-                    if current_biome and current_biome.name() == old_biome_name:
-                        self.set_biome(new_biome, x, y, z)
-                        count += 1
-                except:
-                    continue
-        else:
-            world_bounds = self.get_world_bounds()
-            if world_bounds:
-                min_x, min_y, min_z, max_x, max_y, max_z = world_bounds
-                for x, y, z, block in self.stream_blocks(min_x, min_y, min_z, max_x, max_y, max_z):
-                    try:
-                        current_biome = self.get_biome(x, y, z)
-                        if current_biome and current_biome.name() == old_biome_name:
-                            self.set_biome(new_biome, x, y, z)
-                            count += 1
-                    except:
-                        continue
-        
-        return count
-    """
-
-    
     def find_blocks(self, block: Union[str, Block], 
                     bounds: Optional[Tuple[int, int, int, int, int, int]] = None,
                     limit: Optional[int] = None) -> List[Tuple[int, int, int]]:

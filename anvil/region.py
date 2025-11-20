@@ -484,6 +484,35 @@ class Region:
         
         return data
 
+    def set_region_biome(self, biome: 'anvil.Biome', file_path: str) -> None:
+        """
+        Set all chunks in the region to a single biome.
+        
+        Parameters
+        ----------
+        biome : anvil.Biome
+            The biome to apply to all chunks in the region
+        file_path : str
+            Path to the region file to save to
+        
+        Example
+        -------
+         from anvil import Biome
+         ice_spikes = Biome.from_name("minecraft:ice_spikes")
+         region.set_region_biome(ice_spikes, 'r.0.0.mca')
+        """
+        # Iterate through all possible chunk positions in the region
+        for chunk_x in range(32):
+            for chunk_z in range(32):
+                try:
+                    chunk = self.get_chunk(chunk_x, chunk_z)
+                    if chunk:
+                        chunk.set_chunk_biome(biome)
+                        self.save_chunk(chunk, file_path)
+                except:
+                    # Chunk doesn't exist, skip it
+                    pass
+    
     def save(self, file_path: str) -> None:
         """
         Save the region data to a file.
