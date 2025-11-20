@@ -262,7 +262,6 @@ class World:
         if section is None:
             raise OutOfBoundsCoordinates("Section does not exist")
         index_palette = chunk.add_block_to_palette(section, block)
-        self.save()
         return index_palette
     
     def set_block(self, block: Block, x: int, y: int, z: int) -> None:
@@ -385,7 +384,6 @@ class World:
             chunk.set_biome(biome, local_x, local_z)
         else:
             chunk.set_biome(biome, local_x, y, local_z)
-        self.save()
 
     def set_chunk_biome(self, biome: Biome, chunk_x: int, chunk_z: int) -> None:
         """
@@ -410,7 +408,6 @@ class World:
             raise OutOfBoundsCoordinates("Chunk does not exist")
         
         chunk.set_chunk_biome(biome)
-        self.save()
 
     def set_section_biome(self, biome: Biome, chunk_x: int, chunk_z: int, section_y: int) -> None:
         """
@@ -461,7 +458,6 @@ class World:
             # Remove data array if present (not needed for uniform biome)
             biomes_data.tags[:] = [tag for tag in biomes_data.tags if tag.name != 'data']
         
-        self.save()
 
     def set_region_biome(self, biome: Biome, region_x: int, region_z: int) -> None:
         """
@@ -500,7 +496,6 @@ class World:
                 except:
                     continue
         
-        self.save()
 
     def replace_block_at(self, x: int, y: int, z: int, new_block: Union[str, Block]) -> bool:
         """
