@@ -6,6 +6,13 @@ A Python library designed to read, modify, and write **Minecraft world save file
 
 `anvil-parser2` is a **fork** of **0xTiger's anvil-parser**, which itself was originally forked from [matcool's anvil-parser](https://github.com/matcool/anvil-parser). The initial fork by 0xTiger aimed to add support for Minecraft versions **1.18 and above**. Our current version continues this development as the core data layer for a larger project that includes a REST API and a web-based isometric viewer.
 
+## Installation
+You can install the library using pip:
+
+```bash
+cd lib
+pip install .
+```
 ## Usage
 
 ### Chunk Manipulation

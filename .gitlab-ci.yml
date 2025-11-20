@@ -2,7 +2,6 @@ stages:
   - test
   - sonar
   - build
-  - docs
   - release
 
 test:
@@ -55,24 +54,6 @@ build_wheel:
   only:
     - main
 
-
-pages:
-  stage: docs
-  image: python:3.10
-  variables:
-    LC_ALL: C.UTF-8
-    LANG: C.UTF-8
-  before_script:
-    - python -m pip install --upgrade pip
-    - pip install sphinx sphinx-rtd-theme
-    - pip install -e .
-  script:
-    - sphinx-build -b html docs public
-  artifacts:
-    paths:
-      - public
-  except:
-    - tags
 
 release:
   stage: release
