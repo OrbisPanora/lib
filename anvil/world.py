@@ -408,8 +408,7 @@ class World:
             raise OutOfBoundsCoordinates("Chunk does not exist")
         
         chunk.set_chunk_biome(biome)
-        self.save()
-    
+
     def set_region_biome(self, biome: Biome, region_x: int, region_z: int) -> None:
         """
         Set all chunks in a region to a single biome.
