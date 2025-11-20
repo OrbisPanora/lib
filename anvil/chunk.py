@@ -1294,7 +1294,7 @@ class Chunk:
         Set the entire chunk to a single biome (optimized for uniform biomes).
         
         This method efficiently sets all sections in the chunk to the same biome
-        by creating a minimal palette with a single entry and no data array.
+        by replacing the palette with a single entry and removing the data array.
 
         Parameters
         ----------
@@ -1308,10 +1308,27 @@ class Chunk:
         biome_name = biome.name()
         section_range = section_height_range(self.version)
         
+        # Get or create sections
+        if 'sections' in self.data:
+            sections = self.data["sections"]
+        else:
+            sections = self.data.get("Sections", [])
+        
         for section_y in section_range:
-            # Each section is 16 blocks tall, iterate through biome positions (every 4 blocks)
-            for y_offset in range(0, 16, 4):
-                y = section_y * 16 + y_offset
-                for x in range(0, 16, 4):
-                    for z in range(0, 16, 4):
-                        self.set_biome(biome, x, y, z)
+            section = self.get_section(section_y)
+            if section is None:
+                section = self.create_section(section_y)
+                
+            # Create or update biomes structure in section
+            if 'biomes' not in section:
+                section['biomes'] = nbt.TAG_Compound()
+            
+            biomes = section['biomes']
+            
+            # Replace the palette with a single biome
+            biomes['palette'] = nbt.TAG_List(type=nbt.TAG_String)
+            biomes['palette'].tags = [nbt.TAG_String(value=biome_name)]
+            
+            # Remove the data array (single biome doesn't need it)
+            if 'data' in biomes:
+                del biomes['data']
