@@ -6,723 +6,528 @@ A Python library designed to read, modify, and write **Minecraft world save file
 
 `anvil-parser2` is a **fork** of **0xTiger's anvil-parser**, which itself was originally forked from [matcool's anvil-parser](https://github.com/matcool/anvil-parser). The initial fork by 0xTiger aimed to add support for Minecraft versions **1.18 and above**. Our current version continues this development as the core data layer for a larger project that includes a REST API and a web-based isometric viewer.
 
----
-
-# Usage
-
-## install OP lib
+## Installation
+You can install the library using pip:
 
 ```bash
-pip install git+ssh://git@codefirst.iut.uca.fr/IUT_INF63/projets-etudiants/OrbisPanora/lib.git@origin/dev
+cd lib
+pip install .
 ```
+## Usage
 
-## test simple region, chunk, block retrieval
+### Chunk Manipulation
+#### Loading a Chunk
 
 ```python
-import anvil
+from anvil import Region, Chunk
 
-# link to mca file
-path = '../sae/Egyptian_Odyssey/region/r.0.0.mca'
+# Load a region
+region = Region.from_file('region/r.0.0.mca')
 
-# retrieve a region
-region = anvil.Region.from_file(path) 
-
-# retrieve a chunk at x<32, z<32 
+# Get a specific chunk
 chunk = region.get_chunk(0, 0)
 
-# retrieve a block at coordinates x<16, -64<y<319, z<16
-block = chunk.get_block(0, 0, 0)
+# Or create a chunk directly from a region
+chunk = Chunk.from_region('region/r.0.0.mca', 0, 0)
 
-# display details about the block
-print(block.id)   # ex: minecraft:flowing_water
-print(block.properties)	# ex {"level": 0, "falling": true}
+print(f"Chunk position: ({chunk.x}, {chunk.z})")
+print(f"Version: {chunk.version}")
 ```
 
-
-## test World
+#### Reading Blocks
 
 ```python
-import anvil
+# Get a block at specific coordinates
+block = chunk.get_block(5, 64, 10)
+print(f"Block at (5, 64, 10): {block.id}")
+print(f"Properties: {block.properties}")
 
-# link to the world folder (the one in "/saves")
-path = './testop2'
+# Get the palette of a section
+palette = chunk.get_palette(section=4)  # Section Y=4
+for block in palette:
+    print(f"- {block.id}")
 
-# retrieve the world
-world = anvil.World(path) 
+# Iterate through all blocks in a section
+for block in chunk.stream_blocks(section=4):
+    if block.id == 'minecraft:diamond_ore':
+        print(f"Found diamond ore!")
 
-# retrieve a region (r.x.z.mca)
-region = world.get_region(0, 0)
-
-# retrieve a chunk with global coordinates x, z (no need to stay limited to 32, 32)
-chunk = world.get_chunk(0, 0)
-
-# retrieve a block with global coordinates x, y, z (no need to stay limited to 16, 16, 16)
-block = world.get_block(0, 0, 0)
-
-# display the block
-print(block)
-
-# place a block
-block2 = anvil.Block('minecraft', 'gold_block')
-world.set_block(block2, 201, 162, 201)
-
-# check it in Minecraft (if you test with print, it will display None at first try)
+# Iterate through all blocks in the chunk
+for block in chunk.stream_chunk():
+    if block.id == 'minecraft:chest':
+        print(f"Found chest!")
 ```
 
----
-
-# OrbisPanora Functionalities
-
-## Patterns
-
-The library includes geometric pattern generators for creating complex structures easily.
-
-### Available Patterns
-
-- **Cube**: Rectangular box structures (filled or hollow)
-- **Pyramid**: Stepped pyramid structures
-- **Sphere**: Spherical/ellipsoid structures
-- **Spiral**: Helical spiral structures
-
-### Using Patterns
+#### Modifying Blocks
 
 ```python
-import anvil
-from patterns import Cube, Pyramid, Sphere, Spiral
+from anvil import Block
 
-world = anvil.World('./my_world')
+# Replace a single block
+chunk.replace_block_at(5, 64, 10, "minecraft:diamond_block")
 
-# Create a filled cube
-cube = Cube(
-    blocks=[anvil.Block('minecraft', 'diamond_block'), anvil.Block('minecraft', 'gold_block')],
-    point=(200, 160, 200),
-    size=(10, 10, 10)
-)
-world.apply(cube.filled())
+# Or use a Block object
+diamond = Block.from_name("minecraft:diamond_block")
+chunk.replace_block_at(5, 64, 10, diamond)
 
-# Create a hollow cube
-hollow_cube = Cube(
-    blocks=[anvil.Block('minecraft', 'glass')],
-    point=(220, 160, 200),
-    size=(15, 15, 15)
-)
-world.apply(hollow_cube.empty())
+# Replace all blocks of a type
+count = chunk.replace_blocks("minecraft:dirt", "minecraft:grass_block")
+print(f"Replaced {count} dirt blocks with grass")
 
-# Create a pyramid
-pyramid = Pyramid(
-    blocks=[anvil.Block('minecraft', 'sandstone'), anvil.Block('minecraft', 'smooth_sandstone')],
-    point=(300, 160, 200),
-    size=(21, 11, 21)
-)
-world.apply(pyramid.filled())
+# Set a block with custom properties
+from nbt import nbt
 
-# Create a sphere
-sphere = Sphere(
-    blocks=[anvil.Block('minecraft', 'sea_lantern')],
-    point=(400, 160, 200),
-    size=(20, 20, 20)
-)
-world.apply(sphere.filled())
+block = Block("minecraft", "oak_stairs")
+block.properties = nbt.TAG_Compound()
+block.properties.tags.append(nbt.TAG_String(name="facing", value="north"))
+block.properties.tags.append(nbt.TAG_String(name="half", value="top"))
 
-# Create a spiral
-spiral = Spiral(
-    blocks=[anvil.Block('minecraft', 'oak_log'), anvil.Block('minecraft', 'oak_planks')],
-    point=(500, 160, 200),
-    size=(20, 30, 20)
-)
-world.apply(spiral.filled())
+chunk.set_block(block, 8, 65, 8)
 ```
 
-### Pattern Methods
-
-All pattern classes inherit from `Figure` and provide two main methods:
-
-- **`filled()`**: Returns a dictionary of all blocks in the filled structure
-- **`empty()`**: Returns a dictionary of only the outer shell blocks (hollow structure)
-
-The `world.apply(dict)` method places all blocks from the pattern dictionary into the world.
-
-## Biome Operations
-
-### Get and Set Biomes
+#### Working with Biomes
 
 ```python
-import anvil
 from anvil import Biome
 
-world = anvil.World('./my_world')
+# Get the biome at a position
+biome = chunk.get_biome(8, 64, 8)
+print(f"Biome: {biome}")
 
-# Get biome at coordinates
-biome = world.get_biome(100, 64, 200)
-print(biome.name())  # e.g., "minecraft:plains"
+# Set the biome at a specific position
+desert = Biome.from_name("minecraft:desert")
+chunk.set_biome(desert, 8, 64, 8)
 
-# Set a single biome
-world.set_biome(Biome('desert'), 100, 64, 200)
-
-# Create biome from namespace
-custom_biome = Biome('minecraft', 'cherry_grove')
-world.set_biome(custom_biome, 150, 64, 250)
+# Set the biome for the entire chunk (optimized)
+plains = Biome.from_name("minecraft:plains")
+chunk.set_chunk_biome(plains)
 ```
 
-### Replace Biomes in Area
+#### Heights and Surfaces
 
 ```python
-# Replace all desert biomes with plains in a specific area
-count = world.replace_biomes(
-    "minecraft:desert",
-    "minecraft:plains",
-    bounds=(0, 60, 0, 200, 80, 200)
+# Get the surface height at a position
+height = chunk.get_surface_height(8, 8)
+print(f"Surface height at (8, 8): Y={height}")
+
+# Generate a complete heightmap (16x16)
+heightmap = chunk.to_heightmap()
+for z in range(16):
+    for x in range(16):
+        print(f"{heightmap[z][x]:3d}", end=" ")
+    print()
+
+# Get only surface blocks 
+surface_blocks = chunk.get_surface_blocks(include_biome=True)
+for block_data in surface_blocks[:5]:  # Display first 5
+    print(f"Position: ({block_data['x']}, {block_data['y']}, {block_data['z']})")
+    print(f"Block: {block_data['block']}")
+    print(f"Biome: {block_data.get('biome', 'N/A')}")
+```
+
+#### Tile Entities
+
+```python
+# Get a tile entity at a position
+tile_entity = chunk.get_tile_entity(5, 64, 10)
+if tile_entity:
+    print(f"Tile entity type: {tile_entity['id']}")
+    # Example for a chest
+    if tile_entity['id'].value == 'minecraft:chest':
+        items = tile_entity.get('Items', [])
+        print(f"Chest contains {len(items)} items")
+
+# Iterate through all tile entities in the chunk
+for te in chunk.tile_entities:
+    print(f"Tile entity at ({te['x']}, {te['y']}, {te['z']}): {te['id']}")
+```
+
+#### Sections
+
+```python
+# Get a specific section
+section = chunk.get_section(y=4)  # Section Y=4 (height 64-79)
+if section:
+    print(f"Section Y=4 exists")
+    palette = chunk.get_palette(section)
+    print(f"Palette size: {len(palette)}")
+
+# Create a new empty section
+new_section = chunk.create_section(section_y=5)
+
+# Add a block to a section's palette
+from anvil import Block
+section = chunk.get_section(4)
+stone = Block.from_name("minecraft:stone")
+palette_index = chunk.add_block_to_palette(section, stone)
+print(f"Stone added at palette index: {palette_index}")
+```
+
+#### Saving Changes
+
+```python
+# Save the modified chunk
+chunk.save('region/r.0.0.mca')
+
+# Complete example of modification and saving
+region = Region.from_file('region/r.0.0.mca')
+chunk = region.get_chunk(0, 0)
+
+# Replace all stone blocks with diamond
+count = chunk.replace_blocks("minecraft:stone", "minecraft:diamond_block")
+print(f"Replaced {count} stone blocks")
+
+# Save
+chunk.save('region/r.0.0.mca')
+print("Chunk saved successfully!")
+```
+
+### Export and Serialization
+
+```python
+# Convert to dictionary (lightweight, metadata + palette only)
+chunk_data = chunk.to_dict(simplify=True)
+print(f"Chunk at ({chunk_data['x']}, {chunk_data['z']})")
+print(f"Sections: {len(chunk_data['sections'])}")
+
+# Include all blocks (warning: very heavy, 500KB-2MB)
+full_data = chunk.to_dict(simplify=False, include_blocks=True)
+
+# Convert to JSON
+import json
+with open('chunk_data.json', 'w') as f:
+    json.dump(chunk_data, f, indent=2)
+```
+
+### Region Manipulation
+
+#### Loading a Region
+
+```python
+from anvil import Region
+
+# Load a region from file (default cache: 64 chunks)
+region = Region.from_file('region/r.0.0.mca')
+
+# Custom cache size or disable caching
+region = Region.from_file('region/r.0.0.mca', cache_size=128)  # 128 chunks
+region = Region.from_file('region/r.0.0.mca', cache_size=None)  # No cache
+
+print(f"Region: ({region.region_x}, {region.region_z})")
+```
+
+#### Getting Chunks
+
+```python
+# Get a chunk (returns None if not generated)
+chunk = region.get_chunk(0, 0)
+
+# Get chunk NBT data
+nbt_data = region.chunk_data(5, 10)
+
+# Check if chunk exists
+offset, length = region.chunk_location(5, 10)
+if offset == 0:
+    print("Chunk not generated yet")
+```
+
+#### Cache Management
+
+```python
+# Get cache statistics
+stats = region.get_cache_stats()
+print(f"Hit rate: {stats['hit_rate']:.2%}")
+
+# Invalidate specific chunk or clear all
+region.invalidate_chunk(0, 0)
+region.clear_cache()
+```
+
+#### Modifying Blocks
+
+```python
+from anvil import Block
+
+# Set block at global coordinates
+region.set_block(Block.from_name("minecraft:diamond_block"), 100, 64, 200, 'r.0.0.mca')
+
+# Replace single block
+region.replace_block_at(100, 64, 200, "minecraft:gold_block", 'r.0.0.mca')
+
+# Replace in one chunk
+count = region.replace_blocks("minecraft:stone", "minecraft:dirt", 'r.0.0.mca', chunks=(5, 10))
+
+# Replace in multiple chunks
+count = region.replace_blocks("minecraft:oak_log", "minecraft:birch_log", 'r.0.0.mca',
+                             chunks=[(0, 0), (1, 0), (0, 1)])
+
+# Replace in entire region (don't do this it will take forever
+count = region.replace_blocks("minecraft:sand", "minecraft:gravel", 'r.0.0.mca')
+print(f"Replaced {count} blocks")
+```
+
+#### Saving
+
+```python
+# Save entire region
+region.save('region/r.0.0.mca')
+
+# Save specific chunk
+chunk = region.get_chunk(0, 0)
+# ... modify chunk ...
+region.save_chunk(chunk, 'region/r.0.0.mca')
+```
+
+#### Export to JSON
+
+```python
+import json
+
+# Basic metadata
+data = region.to_dict()
+
+# Include chunk list
+data = region.to_dict(include_chunks=True)
+print(f"Chunks: {len(data['chunks'])}")
+
+# Save to JSON
+with open('region.json', 'w') as f:
+    json.dump(data, f, indent=2)
+```
+
+### World Manipulation
+
+#### Loading a World
+
+```python
+from anvil import World
+
+# Load a world (default: overworld, 512 chunk cache, 32 region cache) - the folder name is the name of your world not "region"
+world = World('path/to/world')
+
+# Custom cache sizes
+world = World('path/to/world', chunk_cache_size=1024, region_cache_size=64)
+
+# Load specific dimension
+world = World('path/to/world', dimension='nether')  # 'overworld', 'nether', 'end'
+```
+
+### Getting Blocks and Chunks
+
+```python
+# Get block at global coordinates
+block = world.get_block(100, 64, -50)
+print(f"Block: {block.id}")
+
+# Get chunk
+chunk = world.get_chunk(0, 0)
+
+# Get region
+region = world.get_region(0, 0)
+
+# Get biome
+biome = world.get_biome(100, 64, -50)
+```
+
+### Modifying Blocks
+
+```python
+from anvil import Block
+
+# Set single block
+world.set_block(Block.from_name("minecraft:diamond_block"), 100, 64, -50)
+
+# Replace single block
+world.replace_block_at(100, 64, -50, "minecraft:gold_block")
+
+# Replace in specific area
+count = world.replace_blocks_in_area(
+    "minecraft:stone", "minecraft:pumpkin",
+    0, 60, 0, 100, 70, 100
 )
-print(f"Replaced {count} biome blocks")
-
-# Replace biomes without bounds (entire loaded world)
-count = world.replace_biomes("minecraft:ocean", "minecraft:deep_ocean")
+print(f"Replaced {count} blocks")
 ```
 
-## Block Search and Detection
-
-### Find Blocks
+### Area Operations
 
 ```python
-# Find up to 10 diamond ore blocks
-positions = world.find_blocks("minecraft:diamond_ore", limit=10)
-for x, y, z in positions:
-    print(f"Diamond ore at ({x}, {y}, {z})")
+# Fill area with blocks
+count = world.fill_area("minecraft:stone", 0, 64, 0, 10, 74, 10)
 
-# Find blocks in a specific area
-positions = world.find_blocks(
-    "minecraft:ancient_debris",
-    bounds=(0, 8, 0, 100, 20, 100),
-    limit=5
-)
-```
+# Clear area (fill with air)
+count = world.clear_area(0, 64, 0, 10, 74, 10)
 
-### Find Nearest Block
+# Copy area
+count = world.copy_area(0, 64, 0, 10, 74, 10, 100, 64, 100)
 
-```python
-# Find nearest diamond ore from a position
-result = world.find_nearest_block("minecraft:diamond_ore", 100, 64, 200, max_radius=50)
-if result:
-    x, y, z, distance = result
-    print(f"Nearest diamond at ({x}, {y}, {z}), {distance:.2f} blocks away")
-else:
-    print("No diamond ore found within 50 blocks")
-```
-
-### Scan Area for Block Distribution
-
-```python
-# Get all block types and their counts in an area
-distribution = world.scan_area(0, 60, 0, 16, 80, 16)
-for block_name, count in sorted(distribution.items(), key=lambda x: x[1], reverse=True):
+# Scan area for block distribution
+distribution = world.get_block_distribution(bounds= (0, 60, 0, 16, 70, 16))
+for block_name, count in distribution.items():
     print(f"{block_name}: {count}")
 ```
 
-## Area Operations
-
-### Fill Area
+### Finding Blocks
 
 ```python
-# Fill a cubic area with stone
-count = world.fill_area("minecraft:stone", 0, 64, 0, 10, 74, 10)
-print(f"Placed {count} blocks")
+# Find all occurrences
+positions = world.find_blocks("minecraft:diamond_ore", limit=10)
+for x, y, z in positions:
+    print(f"Found at ({x}, {y}, {z})")
 
-# Create a platform
-world.fill_area("minecraft:oak_planks", 100, 64, 100, 120, 64, 120)
+# Find nearest block
+result = world.find_nearest_block("minecraft:diamond_ore", 100, 64, 200, max_radius=100)
+if result:
+    x, y, z, distance = result
+    print(f"Nearest at ({x}, {y}, {z}), distance: {distance:.2f}")
+
+# Count blocks
+count = world.count_blocks("minecraft:stone")
+count_in_area = world.count_blocks("minecraft:dirt", (0, 60, 0, 100, 70, 100))
 ```
 
-### Copy Area
+### Block Analysis
 
 ```python
-# Copy a structure from one location to another
-count = world.copy_area(
-    0, 64, 0, 10, 74, 10,    # Source bounds (x1, y1, z1, x2, y2, z2)
-    100, 64, 100              # Destination start point (to_x, to_y, to_z)
-)
-print(f"Copied {count} blocks")
-```
-
-### Clear Area
-
-```python
-# Clear an area (replace with air)
-count = world.clear_area(0, 64, 0, 10, 74, 10)
-print(f"Cleared {count} blocks")
-```
-
-## Replace Blocks
-
-### Replace Underwater Blocks Example
-
-```python
-import anvil
-from anvil import Block
-
-world = anvil.World('./my_world')
-
-# Define search area
-area_bounds = (0, -64, 0, 100, 100, 100)
-
-print("Looking for underwater blocks...")
-replaced_count = 0
-
-# Stream through all blocks in the area
-for x, y, z, block in world.stream_blocks(*area_bounds):
-    if block is None:
-        continue
-    
-    # Skip if current block is water
-    if block.name() == "minecraft:water":
-        continue
-    
-    # Check if block above is water
-    block_above = world.get_block(x, y + 1, z)
-    
-    if block_above and block_above.name() == "minecraft:water":
-        # Replace with desired block
-        world.set_block(Block('minecraft', 'prismarine'), x, y, z)
-        replaced_count += 1
-
-print(f"Replaced {replaced_count} underwater blocks!")
-world.save()
-```
-
----
-
-# Advanced World Features
-
-The `World` class includes powerful features for statistics, memory management, and streaming operations.
-
-## World Statistics
-
-```python
-# Get comprehensive world information
-info = world.get_world_info()
-print(f"World folder: {info['world_folder']}")
-print(f"Loaded regions: {info['loaded_regions']}")
-print(f"World size: {info['size_x']} x {info['size_z']}")
-   
 # Get block distribution
-top_blocks = world.get_block_distribution(top_n=10)
-for block_name, count in top_blocks.items():
-    print(f"{block_name}: {count:,}")
+distribution = world.get_block_distribution(top_n=10)
+for block_name, count in distribution.items():
+    print(f"{block_name}: {count}")
 
-# Get height at coordinates
+# Get distribution in area
+distribution = world.get_block_distribution(
+    bounds=(0, 60, 0, 100, 70, 100),
+    top_n=5
+)
+```
+
+### Biome Management
+
+```python
+from anvil import Biome
+
+# Set biome at position (4x4x4 volume)
+world.set_biome(Biome.from_name("minecraft:desert"), 100, 64, -50)
+
+# Set entire chunk to one biome
+world.set_chunk_biome(Biome.from_name("minecraft:plains"), 5, -3)
+
+# Set entire section in chunk
+world.set_section_biome(Biome.from_name("minecraft:jungle"), 5, -3, 4)
+
+# Set entire region to one biome
+world.set_region_biome(Biome.from_name("minecraft:ice_spikes"), 0, 0)
+```
+
+### Heightmap and Terrain
+
+```python
+# Get height at position
 height = world.get_height_map(100, 200)
-print(f"Surface at (100, 200): Y={height}")
+print(f"Surface at Y={height}")
 
-# Count specific blocks in an area
-stone_count = world.count_blocks("minecraft:stone", bounds=(0, 0, 0, 100, 100, 100))
-print(f"Stone blocks: {stone_count:,}")
+# Get heightmap for area
+heightmap = world.get_area_heightmap(0, 0, 64, 64)
+print(f"Size: {heightmap['width']}x{heightmap['height']}")
 ```
 
-## Stream Blocks
+### Streaming Data
 
 ```python
-# Stream through blocks efficiently without loading everything into memory
-for x, y, z, block in world.stream_blocks(0, 0, 0, 1000, 100, 1000):
-    if block.name() == "minecraft:diamond_ore":
-        print(f"Found diamond ore at ({x}, {y}, {z})")
+# Stream blocks in area
+for x, y, z, block in world.stream_blocks(0, 60, 0, 10, 65, 10):
+    if block.id == "minecraft:diamond_ore":
+        print(f"Diamond at ({x}, {y}, {z})")
+
+# Stream chunks in area
+for chunk_x, chunk_z, chunk in world.stream_chunks(-10, -10, 10, 10):
+    if chunk:
+        print(f"Chunk at ({chunk_x}, {chunk_z})")
 ```
 
-## Memory Management
+### Chunk Data (for Viewer/API)
 
 ```python
-# Check memory usage
-stats = world.get_memory_usage()
-print(f"Loaded regions: {stats['loaded_regions']}")
-print(f"Cached chunks: {stats['cached_chunks']}")
+# Get chunk data in different formats
+heightmap_data = world.get_chunk_data(0, 0, mode='heightmap')  # ~1KB
+surface_data = world.get_chunk_data(0, 0, mode='surface')      # ~10-50KB
+simplified_data = world.get_chunk_data(0, 0, mode='simplified') # ~5KB
+full_data = world.get_chunk_data(0, 0, mode='full')            # ~500KB-2MB
 
-# Unload a specific region
+# Get tile data (16x16 chunks by default)
+tile = world.get_tile_data(0, 0, tile_size=16)
+print(f"Tile has {len(tile['chunks'])} chunks")
+```
+
+### Dimensions
+
+```python
+# Get current dimension
+dim = world.get_dimension()
+print(f"Current: {dim}")
+
+# Switch dimension
+world.switch_dimension('nether')
+world.switch_dimension('end', save_current=True)
+world.switch_dimension('overworld')
+
+# Get dimension info
+info = world.get_dimension_info()
+print(f"Path: {info['path']}")
+```
+
+### Cache Management
+
+```python
+# Get cache statistics
+stats = world.get_cache_stats()
+print(f"Chunk cache hit rate: {stats['chunks']['hit_rate']:.2%}")
+print(f"Region cache hit rate: {stats['regions']['hit_rate']:.2%}")
+
+# Invalidate caches
+world.invalidate_chunk(0, 0)
+world.invalidate_region(0, 0)
+world.clear_cache()
+
+# Get memory usage
+mem = world.get_memory_usage()
+print(f"Loaded regions: {mem['loaded_regions']}")
+print(f"Cached chunks: {mem['cached_chunks']}")
+```
+
+### Region Management
+
+```python
+# Get loaded regions
+regions = world.get_loaded_regions()
+print(f"Loaded: {len(regions)} regions")
+
+# Unload region
 world.unload_region(0, 0, save=True)
 
 # Unload all regions
 count = world.unload_all_regions(save=True)
 print(f"Unloaded {count} regions")
-
-# Clear chunk cache
-world.clear_cache()
 ```
 
-## Performance Tips
+### World Information
 
 ```python
-world = anvil.World(
-    './my_world',
-    chunk_cache_size=1024,  # Cache up to 1024 chunks
-    region_cache_size=64     # Cache up to 64 regions
-)
+# Get world bounds
+bounds = world.get_world_bounds()
+if bounds:
+    min_x, min_y, min_z, max_x, max_y, max_z = bounds
+    print(f"World size: {max_x - min_x}x{max_z - min_z} blocks")
 
-world = anvil.World('./my_world', chunk_cache_size=None, region_cache_size=None)
-
-positions = world.find_blocks(
-    "minecraft:diamond_ore",
-    bounds=(0, -64, 0, 100, 20, 100),  # Only search this area
-    limit=10  # Stop after finding 10
-)
-
-for x, y, z, block in world.stream_blocks(0, 0, 0, 1000, 100, 1000):
-    if block.name() == "minecraft:diamond_ore":
-        print(f"Found at ({x}, {y}, {z})")
-```
-
-## Replace Underwater Blocks
-
-Here's a practical example showing how to replace all blocks that are underwater (below water blocks):
-
-```python
-import anvil
-from anvil import Block
-
-world = anvil.World(r'C:\path\to\your\minecraft\world')
-
-area_bounds = (0, -64, 0, 100, 100, 100)
-
-print("Looking for underwater blocks...")
-
-replaced_count = 0
-
-for x, y, z, block in world.stream_blocks(*area_bounds):
-    if block is None:
-        continue
-    
-    current_block_name = block.name()
-    
-    if current_block_name == "minecraft:water":
-        continue
-    
-    block_above = world.get_block(x, y + 1, z)
-    
-    if block_above and block_above.name() == "minecraft:water":
-        world.set_block(Block('minecraft', 'bedrock'), x, y, z)
-        replaced_count += 1
-        if replaced_count <= 10:  
-            print(f"Replaced {current_block_name} with bedrock at ({x}, {y}, {z})")
-
-if replaced_count > 10:
-    print(f"... and {replaced_count - 10} more blocks")
-
-print(f"Replaced {replaced_count} underwater blocks!")
-
-print("Saving world...")
-world.save()
-print("Done!")
-```
-
-## Working with Dimensions
-
-The library supports all three Minecraft dimensions: **Overworld**, **Nether** (DIM-1), and **The End** (DIM1).
-
-### Creating World Instances for Different Dimensions
-
-```python
-import anvil
-from anvil import Block
-
-world_path = r'C:\path\to\your\minecraft\world'
-
-# Overworld (default)
-overworld = anvil.World(world_path)
-# or explicitly
-overworld = anvil.World(world_path, dimension='overworld')
-
-# Nether
-nether = anvil.World(world_path, dimension='nether')
-
-# The End
-end = anvil.World(world_path, dimension='end')
-
-# Work with each dimension independently
-overworld.set_block(Block('minecraft', 'grass_block'), 100, 64, 100)
-nether.set_block(Block('minecraft', 'netherrack'), 100, 64, 100)
-end.set_block(Block('minecraft', 'end_stone'), 100, 64, 100)
-
-# Save each dimension
-overworld.save()
-nether.save()
-end.save()
-```
-
-### Switching Dimensions
-
-```python
-import anvil
-
-world = anvil.World(r'C:\path\to\world', dimension='overworld')
-
-# Get current dimension
-print(f"Current dimension: {world.get_dimension()}")
-
-# Switch to Nether (saves current dimension first)
-world.switch_dimension('nether', save_current=True)
-
-# Get dimension info
-info = world.get_dimension_info()
-print(f"Dimension: {info['name']}")
-print(f"Path: {info['path']}")
+# Get world info
+info = world.get_world_info()
+print(f"Folder: {info['world_folder']}")
+print(f"Dimension: {info['dimension']}")
 print(f"Loaded regions: {info['loaded_regions']}")
-
-# Switch to The End
-world.switch_dimension('end')
 ```
 
-### Nether Portal Coordinates
-
-Nether coordinates are 1/8 of Overworld coordinates (X and Z only):
+### Saving
 
 ```python
-# Overworld coordinates
-overworld_x, overworld_z = 800, 800
-
-# Corresponding Nether coordinates
-nether_x = overworld_x // 8  # 100
-nether_z = overworld_z // 8  # 100
-
-# Set portal markers
-overworld = anvil.World(world_path, dimension='overworld')
-nether = anvil.World(world_path, dimension='nether')
-
-overworld.set_block(Block('minecraft', 'obsidian'), overworld_x, 64, overworld_z)
-nether.set_block(Block('minecraft', 'obsidian'), nether_x, 64, nether_z)
-```
-
----
-
-# OrbisPanora Functionalities
-
-This section documents features added post-fork to enhance the library with advanced world manipulation capabilities.
-
-## Patterns
-
-The library includes geometric pattern generators for creating complex structures easily. All patterns support both filled and hollow variants.
-
-### Available Patterns
-
-- **Cube**: Rectangular box structures
-- **Pyramid**: Stepped pyramid structures  
-- **Sphere**: Spherical/ellipsoid structures
-- **Spiral**: Helical spiral structures
-
-### Using Patterns
-
-```python
-import anvil
-from patterns import Cube, Pyramid, Sphere, Spiral
-
-world = anvil.World('./my_world')
-
-# Create a filled cube
-cube = Cube(
-    blocks=[anvil.Block('minecraft', 'diamond_block'), anvil.Block('minecraft', 'gold_block')],
-    point=(200, 160, 200),
-    size=(10, 10, 10)
-)
-world.apply(cube.filled())
-
-# Create a hollow cube
-hollow_cube = Cube(
-    blocks=[anvil.Block('minecraft', 'glass')],
-    point=(220, 160, 200),
-    size=(15, 15, 15)
-)
-world.apply(hollow_cube.empty())
-
-# Create a pyramid
-pyramid = Pyramid(
-    blocks=[anvil.Block('minecraft', 'sandstone'), anvil.Block('minecraft', 'smooth_sandstone')],
-    point=(300, 160, 200),
-    size=(21, 11, 21)
-)
-world.apply(pyramid.filled())
-
-# Create a sphere
-sphere = Sphere(
-    blocks=[anvil.Block('minecraft', 'sea_lantern')],
-    point=(400, 160, 200),
-    size=(20, 20, 20)
-)
-world.apply(sphere.filled())
-
-# Create a spiral
-spiral = Spiral(
-    blocks=[anvil.Block('minecraft', 'oak_log'), anvil.Block('minecraft', 'oak_planks')],
-    point=(500, 160, 200),
-    size=(20, 30, 20)
-)
-world.apply(spiral.filled())
-```
-
-### Pattern Methods
-
-All pattern classes inherit from `Figure` and provide:
-
-- **`filled()`**: Returns a dictionary of all blocks in the filled structure
-- **`empty()`**: Returns a dictionary of only the outer shell blocks (hollow structure)
-
-The `world.apply(dict)` method places all blocks from the pattern dictionary into the world.
-
-## Biome Operations
-
-### Get and Set Biomes
-
-```python
-import anvil
-from anvil import Biome
-
-world = anvil.World('./my_world')
-
-# Get biome at coordinates
-biome = world.get_biome(100, 64, 200)
-print(biome.name())  # e.g., "minecraft:plains"
-
-# Set a single biome
-world.set_biome(Biome('desert'), 100, 64, 200)
-
-# Create biome from namespace
-custom_biome = Biome('minecraft', 'cherry_grove')
-world.set_biome(custom_biome, 150, 64, 250)
-```
-
-### Replace Biomes
-
-```python
-# Replace all desert biomes with plains in a specific area
-count = world.replace_biomes(
-    "minecraft:desert",
-    "minecraft:plains",
-    bounds=(0, 60, 0, 200, 80, 200)
-)
-print(f"Replaced {count} biome blocks")
-
-# Replace biomes without bounds (entire loaded world)
-count = world.replace_biomes("minecraft:ocean", "minecraft:deep_ocean")
-```
-
-## Block Replacement Functions
-
-### Replace Block at Position
-
-```python
-# Replace a single block at specific coordinates
-success = world.replace_block_at(100, 64, 200, "minecraft:diamond_block")
-if success:
-    print("Block replaced successfully")
-```
-
-### Replace All Blocks
-
-```python
-# Replace all occurrences of a block type in the entire world
-count = world.replace_blocks("minecraft:stone", "minecraft:dirt")
-print(f"Replaced {count} blocks")
-
-# Replace blocks in a specific area
-count = world.replace_blocks(
-    "minecraft:oak_log",
-    "minecraft:birch_log",
-    bounds=(0, 60, 0, 100, 70, 100)
-)
-print(f"Replaced {count} blocks in the area")
-
-# Replace blocks using Block objects
-old_block = anvil.Block('minecraft', 'water')
-new_block = anvil.Block('minecraft', 'ice')
-count = world.replace_blocks(old_block, new_block, bounds=(0, 0, 0, 100, 100, 100))
-```
-
-### Replace Blocks in Area
-
-```python
-# Convenience method with explicit coordinates
-count = world.replace_blocks_in_area(
-    "minecraft:grass_block",
-    "minecraft:mycelium",
-    x1=0, y1=60, z1=0,
-    x2=100, y2=70, z2=100
-)
-print(f"Replaced {count} blocks")
-```
-
-## Structure Support
-
-Load and place Minecraft structure files (`.nbt` format) into your world.
-
-### Loading Structures
-
-```python
-from anvil import Structure
-
-# Load a structure from file
-structure = Structure.from_file("path/to/structure.nbt")
-
-# Get structure information
-print(f"Structure size: {structure.size}")
-print(f"Number of blocks: {len(structure.blocks)}")
-print(f"Number of entities: {len(structure.entities)}")
-```
-
-### Placing Structures
-
-```python
-import anvil
-from anvil import Structure
-
-world = anvil.World('./my_world')
-
-# Load structure
-house = Structure.from_file("structures/house.nbt")
-
-# Place structure at coordinates
-world = house.generate_in_world(world, x=100, y=64, z=200)
-
-# Save the world
+# Save all modified regions
 world.save()
 ```
-
-## Cache Management
-
-The library includes an LRU cache system for efficient memory management when working with large worlds.
-
-### Configuring Cache
-
-```python
-# Initialize world with custom cache sizes
-world = anvil.World(
-    './my_world',
-    chunk_cache_size=1024,   # Cache up to 1024 chunks
-    region_cache_size=64      # Cache up to 64 regions
-)
-
-# Disable caching entirely
-world = anvil.World(
-    './my_world',
-    chunk_cache_size=None,
-    region_cache_size=None
-)
-```
-
-### Cache Operations
-
-```python
-# Get cache statistics
-stats = world.get_cache_stats()
-print(f"Chunk cache hits: {stats['chunk_cache']['hits']}")
-print(f"Chunk cache misses: {stats['chunk_cache']['misses']}")
-print(f"Current cache size: {stats['chunk_cache']['size']}")
-
-# Clear all caches
-world.clear_cache()
-
-# Invalidate specific chunks/regions
-world.invalidate_chunk(chunk_x=10, chunk_z=20)
-world.invalidate_region(region_x=0, region_z=0)
-```
-
-### Cache Manager
-
-The `CacheManager` class provides thread-safe LRU caching:
-
-- Automatically evicts least recently used items when full
-- Tracks cache hits and misses for performance analysis
-- Thread-safe for concurrent operations
-- Configurable maximum size

@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "orbispanora-parser"
+version = "1.0.0"
+authors = [
+    {name = "OrbisPanora"}
+]
+description = "An updated version of the anvil-parser2, parser for the Minecraft anvil file format, supports all Minecraft versions"
+readme = "README.md"
+requires-python = ">=3.7"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "nbt",
+    "frozendict",
+]
+
+[project.urls]
+Homepage = "https://codefirst.iut.uca.fr/gitlab/IUT_INF63/projets-etudiants/OrbisPanora/lib"
+
+[tool.setuptools]
+packages = ["anvil", "patterns"]
+include-package-data = true
