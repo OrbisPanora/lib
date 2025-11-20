@@ -59,6 +59,9 @@ build_wheel:
 pages:
   stage: docs
   image: python:3.10
+  variables:
+    LC_ALL: C.UTF-8
+    LANG: C.UTF-8
   before_script:
     - python -m pip install --upgrade pip
     - pip install sphinx sphinx-rtd-theme
