@@ -411,9 +411,6 @@ world.set_biome(Biome.from_name("minecraft:desert"), 100, 64, -50)
 # Set entire chunk to one biome
 world.set_chunk_biome(Biome.from_name("minecraft:plains"), 5, -3)
 
-# Set entire section in chunk
-world.set_section_biome(Biome.from_name("minecraft:jungle"), 5, -3, 4)
-
 # Set entire region to one biome
 world.set_region_biome(Biome.from_name("minecraft:ice_spikes"), 0, 0)
 ```
