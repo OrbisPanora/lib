@@ -312,7 +312,7 @@ world = World('path/to/world', chunk_cache_size=1024, region_cache_size=64)
 world = World('path/to/world', dimension='nether')  # 'overworld', 'nether', 'end'
 ```
 
-### Getting Blocks and Chunks
+#### Getting Blocks and Chunks
 
 ```python
 # Get block at global coordinates
@@ -329,7 +329,7 @@ region = world.get_region(0, 0)
 biome = world.get_biome(100, 64, -50)
 ```
 
-### Modifying Blocks
+#### Modifying Blocks
 
 ```python
 from anvil import Block
@@ -348,7 +348,7 @@ count = world.replace_blocks_in_area(
 print(f"Replaced {count} blocks")
 ```
 
-### Area Operations
+#### Area Operations
 
 ```python
 # Fill area with blocks
@@ -366,7 +366,7 @@ for block_name, count in distribution.items():
     print(f"{block_name}: {count}")
 ```
 
-### Finding Blocks
+#### Finding Blocks
 
 ```python
 # Find all occurrences
@@ -385,7 +385,7 @@ count = world.count_blocks("minecraft:stone")
 count_in_area = world.count_blocks("minecraft:dirt", (0, 60, 0, 100, 70, 100))
 ```
 
-### Block Analysis
+#### Block Analysis
 
 ```python
 # Get block distribution
@@ -400,7 +400,7 @@ distribution = world.get_block_distribution(
 )
 ```
 
-### Biome Management
+#### Biome Management
 
 ```python
 from anvil import Biome
@@ -415,7 +415,7 @@ world.set_chunk_biome(Biome.from_name("minecraft:plains"), 5, -3)
 world.set_region_biome(Biome.from_name("minecraft:ice_spikes"), 0, 0)
 ```
 
-### Heightmap and Terrain
+#### Heightmap and Terrain
 
 ```python
 # Get height at position
@@ -427,7 +427,7 @@ heightmap = world.get_area_heightmap(0, 0, 64, 64)
 print(f"Size: {heightmap['width']}x{heightmap['height']}")
 ```
 
-### Streaming Data
+#### Streaming Data
 
 ```python
 # Stream blocks in area
@@ -441,7 +441,7 @@ for chunk_x, chunk_z, chunk in world.stream_chunks(-10, -10, 10, 10):
         print(f"Chunk at ({chunk_x}, {chunk_z})")
 ```
 
-### Chunk Data (for Viewer/API)
+#### Chunk Data (for Viewer/API)
 
 ```python
 # Get chunk data in different formats
@@ -455,7 +455,7 @@ tile = world.get_tile_data(0, 0, tile_size=16)
 print(f"Tile has {len(tile['chunks'])} chunks")
 ```
 
-### Dimensions
+#### Dimensions
 
 ```python
 # Get current dimension
@@ -472,7 +472,7 @@ info = world.get_dimension_info()
 print(f"Path: {info['path']}")
 ```
 
-### Cache Management
+#### Cache Management
 
 ```python
 # Get cache statistics
@@ -491,7 +491,7 @@ print(f"Loaded regions: {mem['loaded_regions']}")
 print(f"Cached chunks: {mem['cached_chunks']}")
 ```
 
-### Region Management
+#### Region Management
 
 ```python
 # Get loaded regions
@@ -506,7 +506,7 @@ count = world.unload_all_regions(save=True)
 print(f"Unloaded {count} regions")
 ```
 
-### World Information
+#### World Information
 
 ```python
 # Get world bounds
@@ -522,9 +522,56 @@ print(f"Dimension: {info['dimension']}")
 print(f"Loaded regions: {info['loaded_regions']}")
 ```
 
-### Saving
+#### Saving
 
 ```python
 # Save all modified regions
+world.save()
+```
+
+### Patterns
+The library includes geometric pattern generators that make it easy to create complex structures.
+
+#### Available Patterns
+
+Cube: Rectangular box structures
+Pyramid: Stepped pyramid structures
+Sphere: Spherical/ellipsoid structures
+Spiral: Helical spiral structures
+
+#### Using Patterns
+```python
+import anvil
+from patterns import Cube, Pyramid, Spiral, Sphere
+from nbt import nbt
+
+WORLD_PATH = r'PATH_TO_YOUR_WORLD'
+world = anvil.World(
+    WORLD_PATH,
+    chunk_cache_size=1024,  # Cache up to 1024 chunks
+    region_cache_size=64    # Cache up to 64 regions
+)
+
+world.apply_figure(
+    Pyramid,  # Choose your pattern (Cube, Pyramid, Sphere, Spiral)
+    blocks=[anvil.Block('minecraft', 'lapis_block')],  # Choose any Minecraft block
+    point=(-50, 100, -50),  # (x, y, z)
+    size=(18, 9, 18),  # (width, height, length)
+    filled=False  # False for hollow, True for solid
+)
+```
+
+### Structure Manipulation
+```python
+from anvil import Structure
+
+world_path = 'path/to/your/save/folder
+structure_file = 'path/to/the/nbt-file' # ./plains_large_farm_1.nbt
+
+structure = Structure.from_file(structure_file)
+
+world = World(world_path)
+world.create_structure(x, y, z, structure)
+
 world.save()
 ```
