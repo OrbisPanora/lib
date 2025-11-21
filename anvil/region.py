@@ -1,13 +1,14 @@
+import os
 from typing import Tuple, Union, BinaryIO, Optional
 from nbt import nbt
 import zlib
-import os
 from io import BytesIO
 import anvil
 from .errors import GZipChunkData
 from .versions import VERSION_21w43a
 from .cache_manager import CacheManager
 import tempfile
+import re
 import gzip
 
 class Region:
@@ -21,9 +22,9 @@ class Region:
     _chunk_cache: :class:`CacheManager` or None
         Optional LRU cache for loaded chunks
     """
-    __slots__ = ('data', '_chunk_cache')
+    __slots__ = ('data', '_chunk_cache', 'region_x', 'region_z')
     
-    def __init__(self, data: bytes, cache_size: Optional[int] = 64):
+    def __init__(self, data: bytes, cache_size: Optional[int] = 64, region_x: Optional[int] = None, region_z: Optional[int] = None):
         """
         Makes a Region object from data, which is the region file content
         
@@ -37,6 +38,9 @@ class Region:
         """
         self.data = data
         self._chunk_cache = CacheManager(max_size=cache_size) if cache_size else None
+
+        self.region_x: int = region_x
+        self.region_z: int = region_z
 
     @staticmethod
     def header_offset(chunk_x: int, chunk_z: int) -> int:
@@ -274,8 +278,15 @@ class Region:
             Default is 64 chunks.
         """
         if isinstance(file, str):
+            base = os.path.basename(file)
+            match = re.match(r"r\.(-?\d+)\.(-?\d+)\.mca$", base)
+            if not match:
+                raise ValueError(f"Invalid region file name: {file}")
+
+            x = int(match.group(1))
+            z = int(match.group(2))
             with open(file, 'rb') as f:
-                return cls(data=f.read(), cache_size=cache_size)
+                return cls(data=f.read(), cache_size=cache_size, region_x=x, region_z=z)
         else:
             return cls(data=file.read(), cache_size=cache_size)
 
@@ -304,7 +315,7 @@ class Region:
 
         Example
         -------
-        >>> region.replace_block_at(100, 64, 200, "minecraft:diamond_block", "r.0.0.mca")
+         region.replace_block_at(100, 64, 200, "minecraft:diamond_block", "r.0.0.mca")
         """
         chunk_x = x >> 4
         chunk_z = z >> 4
@@ -355,15 +366,15 @@ class Region:
 
         Examples
         --------
-        >>> # Replace in a single chunk
-        >>> count = region.replace_blocks("minecraft:stone", "minecraft:dirt", "r.0.0.mca", chunks=(5, 10))
+         # Replace in a single chunk
+         count = region.replace_blocks("minecraft:stone", "minecraft:dirt", "r.0.0.mca", chunks=(5, 10))
 
-        >>> # Replace in multiple chunks
-        >>> count = region.replace_blocks("minecraft:oak_log", "minecraft:birch_log", "r.0.0.mca",
+         # Replace in multiple chunks
+         count = region.replace_blocks("minecraft:oak_log", "minecraft:birch_log", "r.0.0.mca",
         ...                               chunks=[(0, 0), (1, 0), (0, 1)])
 
-        >>> # Replace in all chunks of the region
-        >>> count = region.replace_blocks("minecraft:sand", "minecraft:gravel", "r.0.0.mca")
+         # Replace in all chunks of the region
+         count = region.replace_blocks("minecraft:sand", "minecraft:gravel", "r.0.0.mca")
         """
         from typing import List
 
@@ -449,8 +460,8 @@ class Region:
             
         Example
         -------
-        >>> region = Region.from_file('r.0.0.mca')
-        >>> region.to_dict(include_chunks=True)
+         region = Region.from_file('r.0.0.mca')
+         region.to_dict(include_chunks=True)
         {'region_x': 0, 'region_z': 0, 'chunks': [[0, 0], [0, 1], ...]}
         """
         data = {
@@ -473,6 +484,35 @@ class Region:
         
         return data
 
+    def set_region_biome(self, biome: 'anvil.Biome', file_path: str) -> None:
+        """
+        Set all chunks in the region to a single biome.
+        
+        Parameters
+        ----------
+        biome : anvil.Biome
+            The biome to apply to all chunks in the region
+        file_path : str
+            Path to the region file to save to
+        
+        Example
+        -------
+         from anvil import Biome
+         ice_spikes = Biome.from_name("minecraft:ice_spikes")
+         region.set_region_biome(ice_spikes, 'r.0.0.mca')
+        """
+        # Iterate through all possible chunk positions in the region
+        for chunk_x in range(32):
+            for chunk_z in range(32):
+                try:
+                    chunk = self.get_chunk(chunk_x, chunk_z)
+                    if chunk:
+                        chunk.set_chunk_biome(biome)
+                        self.save_chunk(chunk, file_path)
+                except:
+                    # Chunk doesn't exist, skip it
+                    pass
+    
     def save(self, file_path: str) -> None:
         """
         Save the region data to a file.
@@ -484,7 +524,7 @@ class Region:
         
         Example
         -------
-        >>> region.save('r.0.0.mca')
+         region.save('r.0.0.mca')
         """
         with open(file_path, 'wb') as f:
             f.write(self.data)
