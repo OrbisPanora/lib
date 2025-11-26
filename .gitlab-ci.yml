@@ -98,6 +98,13 @@ deploy-documentation:
         NAMESPACE_NAME: iut-inf63-projets-etudiants-orbispanora
         VOLUME_MOUNT_PATH: /usr/share/nginx/html
         ARTIFACT_PATH: docs/_build/html
+    after_script:
+      - echo "=== Vérification du contenu de l'artifact avant déploiement ==="
+      - ls -la docs/_build/html
+      - echo "=== Contenu des fichiers HTML ==="
+      - find docs/_build/html -name "*.html" | head -5
+      - echo "=== Contenu des fichiers de  /usr/share/nginx/html==="
+      - ls /usr/share/nginx/html
     allow_failure: true
     only:
       - master
