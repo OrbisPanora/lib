@@ -5,7 +5,7 @@ import secrets
 class TestReadRegion:
 
     def test_from_filename(self, tmp_path):
-        filename = tmp_path / "region.mca"
+        filename = tmp_path / "r.0.0.mca"
         contents = secrets.token_bytes()
 
         with open(filename, 'wb') as f:
