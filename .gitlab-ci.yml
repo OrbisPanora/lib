@@ -1,7 +1,6 @@
 workflow:
   rules:
     - if: '$CI_COMMIT_BRANCH == "master"'
-    - if: '$CI_COMMIT_BRANCH == "cicd/documentation"'
     - when: never
 
 stages:
@@ -51,7 +50,6 @@ build_docs:
   only:
     - main
     - dev
-    - cicd/documentation
 
 push-documentation-image:
   extends: .build-and-push-docker-image
@@ -116,7 +114,6 @@ deploy-documentation:
     allow_failure: true
     only:
       - master
-      - cicd/documentation
 
 release:
   stage: release
