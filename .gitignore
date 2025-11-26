@@ -12,7 +12,6 @@ venv/
 *.mca
 *.nbt
 api/
-docs/
 
 # Visual Studio
 .vs/

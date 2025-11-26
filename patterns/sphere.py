@@ -7,11 +7,29 @@ class Sphere(Figure):
     """
     Represents a sphere (ellipsoid) pattern for block placement.
     Inherits from Figure and provides methods to generate empty and filled spheres.
+    
+    Attributes
+    ----------
+    blocks : list[anvil.Block]
+        List of block types to use
+    point : tuple[int, int, int]
+        Starting point (x, y, z)
+    size : tuple[int, int, int]
+        Size of the ellipsoid (width, height, depth)
     """
 
     def __init__(self, blocks : list[anvil.Block], point : tuple[int, int, int], size : tuple[int, int, int]):
         """
         Initialize a Sphere object.
+        
+        Parameters
+        ----------
+        blocks : list[anvil.Block]
+            List of block types to use
+        point : tuple[int, int, int]
+            Starting point (x, y, z)
+        size : tuple[int, int, int]
+            Size of the ellipsoid (width, height, depth)
         """
         super().__init__(blocks, point, size)
 
