@@ -96,6 +96,8 @@ deploy-documentation:
         CONTAINER_IMAGE_PATH: nginx:alpine
         NAMESPACE_TOKEN: $KUBE_NAMESPACE_TOKEN
         NAMESPACE_NAME: iut-inf63-projets-etudiants-orbispanora
+        VOLUME_MOUNT_PATH: /usr/share/nginx/html
+        ARTIFACT_PATH: docs/_build/html
     allow_failure: true
     only:
       - master
