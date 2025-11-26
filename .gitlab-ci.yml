@@ -8,6 +8,7 @@ stages:
   - test
   - sonar
   - build
+  - push
   - deploy
   - release
 
@@ -44,11 +45,26 @@ build_docs:
     - sphinx-build -b html docs docs/_build/html
   artifacts:
     paths:
-      - docs/_build/html
+      - docs/
     expire_in: 1 week
   only:
     - main
     - dev
+    - cicd/documentation
+
+push-documentation-image:
+  extends: .build-and-push-docker-image
+  stage: push
+  variables: 
+    DOCKERFILE_RELATIVE_PATH: ./docs/Dockerfile
+    DOCKERFILE_CONTEXT_PATH: ./docs
+    DESTINATION_REGISTRY_IMAGE_NAME: $CI_REGISTRY_IMAGE/orbispanora-docs
+    DESTINATION_REGISTRY_IMAGE_VERSION: "latest"
+  dependencies:
+    - build_docs
+  allow_failure: true
+  only:
+    - master
     - cicd/documentation
 
 sonarqube-check:
@@ -85,26 +101,16 @@ build_wheel:
   only:
     - main
 
-
 deploy-documentation:
     extends: .deploy-image
     stage: deploy
     dependencies:
-      - build_docs
+      - push-documentation-image
     variables:
         CONTAINER_NAME: orbispanora-docs
-        CONTAINER_IMAGE_PATH: nginx:alpine
+        CONTAINER_IMAGE_PATH: $CI_REGISTRY_IMAGE/orbispanora-docs:latest
         NAMESPACE_TOKEN: $KUBE_NAMESPACE_TOKEN
         NAMESPACE_NAME: iut-inf63-projets-etudiants-orbispanora
-        VOLUME_MOUNT_PATH: /usr/share/nginx/html
-        ARTIFACT_PATH: docs/_build/html
-    after_script:
-      - echo "=== Vérification du contenu de l'artifact avant déploiement ==="
-      - ls -la docs/_build/html
-      - echo "=== Contenu des fichiers HTML ==="
-      - find docs/_build/html -name "*.html" | head -5
-      - echo "=== Contenu des fichiers de  /usr/share/nginx/html==="
-      - ls /usr/share/nginx/html
     allow_failure: true
     only:
       - master
