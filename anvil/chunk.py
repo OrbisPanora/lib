@@ -466,8 +466,8 @@ class Chunk:
             
         Example
         -------
-        >>> chunk = region.get_chunk(0, 0)
-        >>> chunk.to_dict(simplify=True)
+         chunk = region.get_chunk(0, 0)
+         chunk.to_dict(simplify=True)
         {'x': 0, 'z': 0, 'version': 3465, 'sections': [...]}
         """
         data = {
@@ -565,9 +565,9 @@ class Chunk:
             
         Example
         -------
-        >>> chunk = region.get_chunk(0, 0)
-        >>> height = chunk.get_surface_height(8, 8)
-        >>> print(f"Surface at Y={height}")
+         chunk = region.get_chunk(0, 0)
+         height = chunk.get_surface_height(8, 8)
+         print(f"Surface at Y={height}")
         """
         if x not in range(16) or z not in range(16):
             raise OutOfBoundsCoordinates(f"X and Z must be in range 0-15, got X={x}, Z={z}")
@@ -595,9 +595,9 @@ class Chunk:
             
         Example
         -------
-        >>> chunk = region.get_chunk(0, 0)
-        >>> heightmap = chunk.to_heightmap()
-        >>> print(heightmap[0][0])  # Height at X=0, Z=0
+         chunk = region.get_chunk(0, 0)
+         heightmap = chunk.to_heightmap()
+         print(heightmap[0][0])  # Height at X=0, Z=0
         64
         """
         heightmap = []
@@ -626,9 +626,9 @@ class Chunk:
             
         Example
         -------
-        >>> chunk = region.get_chunk(0, 0)
-        >>> surface = chunk.get_surface_blocks(include_biome=True)
-        >>> print(surface[0])
+         chunk = region.get_chunk(0, 0)
+         surface = chunk.get_surface_blocks(include_biome=True)
+         print(surface[0])
         {'x': 0, 'y': 64, 'z': 0, 'block': 'minecraft:grass_block', 'biome': 'plains'}
         """
         surface_blocks = []
@@ -694,7 +694,7 @@ class Chunk:
         
         section = self.get_section(section_y)
         if section is None:
-            section = self._create_section(section_y)
+            section = self.create_section(section_y)
         
         local_y = y % 16
         self._set_block_in_section(section, block, x, local_y, z)
@@ -712,7 +712,7 @@ class Chunk:
         
         block_states['palette'] = palette
 
-    def _add_block_to_palette(self, section: nbt.TAG_Compound, block: Block) -> int:
+    def add_block_to_palette(self, section: nbt.TAG_Compound, block: Block) -> int:
         """
         Add a block to the palette and return its index.
 
@@ -744,7 +744,7 @@ class Chunk:
             self._recalculate_blockstates_bits(section, old_bits, new_bits)
         return len(palette) - 1
 
-    def _create_section(self, section_y: int) -> nbt.TAG_Compound:
+    def create_section(self, section_y: int) -> nbt.TAG_Compound:
         """
         Create a new empty section.
 
@@ -827,7 +827,7 @@ class Chunk:
         
         # If the block doesn't exist, add it to the palette
         if block_index is None:
-            block_index = self._add_block_to_palette(section, block)
+            block_index = self.add_block_to_palette(section, block)
             # Update the palette reference after adding
             palette = palette_from_section(section)
         
@@ -926,7 +926,7 @@ class Chunk:
                     # Verify write
                     stored = (new_states[long_index] >> offset) & mask
                     if stored != block_index:
-                        raise(f"ERROR: Value mismatch at {i}: wrote {block_index} but read {stored}")
+                        raise RuntimeError(f"ERROR: Value mismatch at {i}: wrote {block_index} but read {stored}")
                 else:
                     # Complex case: bits span two longs
                     bits_in_first = 64 - offset
@@ -952,7 +952,7 @@ class Chunk:
                         stored_second = new_states[long_index + 1] & second_mask
                         stored = stored_first | (stored_second << bits_in_first)
                         if stored != block_index:
-                            raise(f"ERROR: Spanning value mismatch at {i}: wrote {block_index} but read {stored}")
+                            raise RuntimeError(f"ERROR: Spanning value mismatch at {i}: wrote {block_index} but read {stored}")
                 
             # Update the states array
             states[:] = new_states
@@ -1079,7 +1079,7 @@ class Chunk:
                 stored_second = states[long_index + 1] & mask_second
                 stored_value = stored_first | (stored_second << bits_in_first)
                 if stored_value != block_index:
-                    raise(f"WARNING: Block data verification failed at ({x},{y},{z}): wrote {block_index} but read {stored_value}")
+                    raise RuntimeError(f"WARNING: Block data verification failed at ({x},{y},{z}): wrote {block_index} but read {stored_value}")
             
             # Verify the write
             stored_first = (states[long_index] >> offset) & mask_first
@@ -1169,8 +1169,8 @@ class Chunk:
         
         Example
         -------
-        >>> chunk.replace_block_at(5, 64, 10, "minecraft:diamond_block")
-        >>> chunk.replace_block_at(5, 64, 10, Block.from_name("minecraft:stone"))
+         chunk.replace_block_at(5, 64, 10, "minecraft:diamond_block")
+         chunk.replace_block_at(5, 64, 10, Block.from_name("minecraft:stone"))
         """
         # Convert string to Block object if needed
         if isinstance(new_block, str):
@@ -1259,7 +1259,7 @@ class Chunk:
 
         section = self.get_section(section_y)
         if section is None:
-            section = self._create_section(section_y)
+            section = self.create_section(section_y)
 
         if 'biomes' not in section:
             _create_biomes_in_section(section)
@@ -1294,7 +1294,7 @@ class Chunk:
         Set the entire chunk to a single biome (optimized for uniform biomes).
         
         This method efficiently sets all sections in the chunk to the same biome
-        by creating a minimal palette with a single entry and no data array.
+        by replacing the palette with a single entry and removing the data array.
 
         Parameters
         ----------
@@ -1303,15 +1303,32 @@ class Chunk:
             
         Example
         -------
-        >>> chunk.set_chunk_biome(Biome.from_name("minecraft:desert"))
+         chunk.set_chunk_biome(Biome.from_name("minecraft:desert"))
         """
         biome_name = biome.name()
         section_range = section_height_range(self.version)
         
+        # Get or create sections
+        if 'sections' in self.data:
+            sections = self.data["sections"]
+        else:
+            sections = self.data.get("Sections", [])
+        
         for section_y in section_range:
-            # Each section is 16 blocks tall, iterate through biome positions (every 4 blocks)
-            for y_offset in range(0, 16, 4):
-                y = section_y * 16 + y_offset
-                for x in range(0, 16, 4):
-                    for z in range(0, 16, 4):
-                        self.set_biome(biome, x, y, z)
+            section = self.get_section(section_y)
+            if section is None:
+                section = self.create_section(section_y)
+                
+            # Create or update biomes structure in section
+            if 'biomes' not in section:
+                section['biomes'] = nbt.TAG_Compound()
+            
+            biomes = section['biomes']
+            
+            # Replace the palette with a single biome
+            biomes['palette'] = nbt.TAG_List(type=nbt.TAG_String)
+            biomes['palette'].tags = [nbt.TAG_String(value=biome_name)]
+            
+            # Remove the data array (single biome doesn't need it)
+            if 'data' in biomes:
+                del biomes['data']

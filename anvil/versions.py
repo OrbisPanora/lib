@@ -1,3 +1,8 @@
+"""
+Minecraft version constants for data version tracking.
+Defines important snapshot versions that changed chunk/block format.
+"""
+
 # This version removes the chunk's "Level" NBT tag and moves all contained tags to the top level
 # https://minecraft.wiki/w/Java_Edition_21w43a
 VERSION_21w43a = 2844

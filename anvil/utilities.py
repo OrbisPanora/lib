@@ -24,7 +24,7 @@ def bin_append(a, b, length=None):
 
     Examples
     --------
-    >>> bin_append(0b1, 0b10)
+     bin_append(0b1, 0b10)
     0b110
     """
     length = length or b.bit_length()

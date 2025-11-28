@@ -7,11 +7,29 @@ class Pyramid(patterns.figure.Figure):
     """
     Represents a pyramid pattern for block placement.
     Inherits from Figure and provides methods to generate empty and filled pyramids.
+    
+    Attributes
+    ----------
+    blocks : list[anvil.Block]
+        List of block types to use
+    point : tuple[int, int, int]
+        Starting point (x, y, z)
+    size : tuple[int, int, int]
+        Size of the pyramid (base_width, height, base_depth)
     """
 
     def __init__(self, blocks : list[anvil.Block], point : tuple[int, int, int], size : tuple[int, int, int]):
         """
         Initialize a Pyramid object.
+        
+        Parameters
+        ----------
+        blocks : list[anvil.Block]
+            List of block types to use
+        point : tuple[int, int, int]
+            Starting point (x, y, z)
+        size : tuple[int, int, int]
+            Size of the pyramid (base_width, height, base_depth)
         """
         super().__init__(blocks, point, size)
 

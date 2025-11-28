@@ -1,8 +1,22 @@
+workflow:
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+    - when: never
+
 stages:
   - test
   - sonar
   - build
+  - push
+  - deploy
   - release
+
+include:
+    - project: 'IUT_INF63/generic-ci'
+      ref: 'main'
+      file:
+        - 'build/.docker-build.yml' 
+        - 'deploy/.docker-deploy.yml'
 
 test:
   stage: test
@@ -16,8 +30,41 @@ test:
   script:
     - pytest
   only:
+    - master
+  when : manual
+
+build_docs:
+  stage: build
+  image: python:3.9
+  before_script:
+    - export LC_ALL=C.UTF-8
+    - export LANG=C.UTF-8
+    - python -m pip install --upgrade pip --root-user-action=ignore
+    - pip install -r docs/requirements.txt --root-user-action=ignore
+  script:
+    - sphinx-build -b html docs docs/_build/html
+  artifacts:
+    paths:
+      - docs/
+    expire_in: 1 week
+  only:
     - main
     - dev
+
+push-documentation-image:
+  extends: .build-and-push-docker-image
+  stage: push
+  variables: 
+    DOCKERFILE_RELATIVE_PATH: ./docs/Dockerfile
+    DOCKERFILE_CONTEXT_PATH: ./docs
+    DESTINATION_REGISTRY_IMAGE_NAME: $CI_REGISTRY_IMAGE/orbispanora-docs
+    DESTINATION_REGISTRY_IMAGE_VERSION: "latest"
+  dependencies:
+    - build_docs
+  allow_failure: true
+  only:
+    - master
+    - cicd/documentation
 
 sonarqube-check:
   stage: sonar
@@ -35,6 +82,7 @@ sonarqube-check:
     - sonar-scanner
   allow_failure: true
   only:
+    - fixRelease
     - main
     - dev
 
@@ -52,6 +100,20 @@ build_wheel:
     expire_in: 1 week
   only:
     - main
+
+deploy-documentation:
+    extends: .deploy-image
+    stage: deploy
+    dependencies:
+      - push-documentation-image
+    variables:
+        CONTAINER_NAME: orbispanora-docs
+        CONTAINER_IMAGE_PATH: $CI_REGISTRY_IMAGE/orbispanora-docs:latest
+        NAMESPACE_TOKEN: $KUBE_NAMESPACE_TOKEN
+        NAMESPACE_NAME: iut-inf63-projets-etudiants-orbispanora
+    allow_failure: true
+    only:
+      - master
 
 release:
   stage: release
