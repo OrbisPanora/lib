@@ -22,9 +22,9 @@ class Region:
     _chunk_cache: :class:`CacheManager` or None
         Optional LRU cache for loaded chunks
     """
-    __slots__ = ('data', '_chunk_cache', 'region_x', 'region_z')
+    __slots__ = ('data', '_chunk_cache', 'region_x', 'region_z', 'file_path')
     
-    def __init__(self, data: bytes, cache_size: Optional[int] = 64, region_x: Optional[int] = None, region_z: Optional[int] = None):
+    def __init__(self, data: bytes, cache_size: Optional[int] = 64, region_x: Optional[int] = None, region_z: Optional[int] = None, file_path: Optional[str] = None):
         """
         Makes a Region object from data, which is the region file content
         
@@ -35,12 +35,15 @@ class Region:
         cache_size : Optional[int]
             Maximum number of chunks to cache. If None, caching is disabled.
             Default is 64 chunks.
+        file_path : Optional[str]
+            Path to the region file
         """
         self.data = data
         self._chunk_cache = CacheManager(max_size=cache_size) if cache_size else None
 
         self.region_x: int = region_x
         self.region_z: int = region_z
+        self.file_path: Optional[str] = file_path
 
     @staticmethod
     def header_offset(chunk_x: int, chunk_z: int) -> int:
@@ -168,7 +171,7 @@ class Region:
             #raise Exception(f"Failed to set block at ({x}, {y}, {z}): {e}") from e
             raise e #Exception(f"Failed to set block at ({x}, {y}, {z})") from e
     
-    def save_chunk(self, chunk: 'anvil.Chunk', file_path: str) -> None:
+    def save_chunk(self, chunk: 'anvil.Chunk', file_path: Optional[str] = None ) -> None:
         """
         Saves a modified chunk to the region file.
         
@@ -176,9 +179,19 @@ class Region:
         ----------
         chunk : :class:`anvil.Chunk`
             The chunk to save
-        file_path : str
-            Path to the region file to save to
+        file_path : Optional[str]
+            Path to the region file to save to. If None, uses the stored file_path.
+
+        Raises
+        ------
+        ValueError
+        If no file_path is provided and none is stored
         """
+
+        path = file_path or self.file_path
+        if path is None:
+            raise ValueError("No file_path provided and no file_path stored in region")
+
         nbt_data = chunk.data
         
         if chunk.version >= VERSION_21w43a:
@@ -261,7 +274,7 @@ class Region:
         region_data[chunk_data_start:chunk_data_start + len(chunk_data)] = chunk_data
         self.data = bytes(region_data)
         
-        with open(file_path, 'wb') as f:
+        with open(path, 'wb') as f:
             f.write(self.data)
 
     @classmethod
@@ -286,7 +299,7 @@ class Region:
             x = int(match.group(1))
             z = int(match.group(2))
             with open(file, 'rb') as f:
-                return cls(data=f.read(), cache_size=cache_size, region_x=x, region_z=z)
+                return cls(data=f.read(), cache_size=cache_size, region_x=x, region_z=z, file_path=file)
         else:
             return cls(data=file.read(), cache_size=cache_size)
 
@@ -512,19 +525,47 @@ class Region:
                 except:
                     # Chunk doesn't exist, skip it
                     pass
-    
-    def save(self, file_path: str) -> None:
+
+
+    def save(self, file_path: Optional[str] = None) -> int:
         """
-        Save the region data to a file.
-        
+        Save all cached chunks to the region file.
+
         Parameters
         ----------
-        file_path : str
-            Path to the region file to save to
-        
+        file_path : Optional[str]
+            Path to the region file to save to. If None, uses the stored file_path.
+
+        Returns
+        -------
+        int
+            Number of chunks saved
+
+        Raises
+        ------
+        ValueError
+            If no file_path is provided and none is stored
+
         Example
         -------
          region.save('r.0.0.mca')
+         region.save()  # Uses stored file_path
         """
-        with open(file_path, 'wb') as f:
-            f.write(self.data)
+        path = file_path or self.file_path
+        if path is None:
+            raise ValueError("No file_path provided and no file_path stored in region")
+
+        if self._chunk_cache is None:
+            return 0
+
+        count = 0
+        for chunk_z in range(32):
+            for chunk_x in range(32):
+                cache_key = (chunk_x, chunk_z)
+                chunk = self._chunk_cache.get(cache_key)
+                if chunk is not None:
+                    self.save_chunk(chunk, path)
+                    count += 1
+
+        return count
+

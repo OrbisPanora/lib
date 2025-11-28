@@ -178,7 +178,7 @@ count = chunk.replace_blocks("minecraft:stone", "minecraft:diamond_block")
 print(f"Replaced {count} stone blocks")
 
 # Save
-chunk.save('region/r.0.0.mca')
+chunk.save()
 print("Chunk saved successfully!")
 ```
 
@@ -275,7 +275,7 @@ region.save('region/r.0.0.mca')
 # Save specific chunk
 chunk = region.get_chunk(0, 0)
 # ... modify chunk ...
-region.save_chunk(chunk, 'region/r.0.0.mca')
+region.save_chunk(chunk)
 ```
 
 #### Export to JSON
