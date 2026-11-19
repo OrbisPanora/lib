@@ -1,8 +1,10 @@
 import os
-import tempfile
 import shutil
-import anvil
-from anvil import Block
+import tempfile
+
+from orbispanora_lib import anvil
+from orbispanora_lib.anvil import Block
+
 
 class TestDimensions:
     def setup_method(self):
@@ -93,11 +95,11 @@ class TestDimensions:
         nether_block = nether.get_block(10, 64, 10)
         end_block = end.get_block(10, 64, 10)
 
-        if overworld_block:
+        if isinstance(overworld_block, Block):
             assert overworld_block.name() == 'minecraft:grass_block'
-        if nether_block:
+        if isinstance(nether_block, Block):
             assert nether_block.name() == 'minecraft:netherrack'
-        if end_block:
+        if isinstance(end_block, Block):
             assert end_block.name() == 'minecraft:end_stone'
 
     def test_dimension_isolation(self):
@@ -107,7 +109,7 @@ class TestDimensions:
         world.switch_dimension('nether', save_current=True)
         nether_block = world.get_block(5, 64, 5)
 
-        if nether_block:
+        if isinstance(nether_block, Block):
             assert nether_block.name() != 'minecraft:diamond_block'
 
     def test_save_in_different_dimensions(self):

@@ -1,9 +1,10 @@
-import unittest
 import os
-import tempfile
 import shutil
-import anvil
-from anvil import Block, Biome
+import tempfile
+import unittest
+
+from orbispanora_lib import anvil
+from orbispanora_lib.anvil import Biome, Block
 
 
 class TestWorldFeatures(unittest.TestCase):
@@ -192,7 +193,7 @@ class TestWorldFeatures(unittest.TestCase):
         self.assertEqual(count, 3 * 3 * 3)  # 3x3x3 = 27
 
         block = self.world.get_block(50, 64, 50)
-        self.assertIsNotNone(block)
+        assert isinstance(block, Block)
         self.assertEqual(block.name(), "minecraft:gold_block")
 
     def test_clear_area(self):
@@ -204,7 +205,7 @@ class TestWorldFeatures(unittest.TestCase):
         self.assertEqual(count, 3 * 3 * 3)
 
         block = self.world.get_block(60, 64, 60)
-        self.assertIsNotNone(block)
+        assert isinstance(block, Block)
         self.assertEqual(block.name(), "minecraft:air")
 
     def test_copy_area(self):
@@ -220,11 +221,11 @@ class TestWorldFeatures(unittest.TestCase):
         self.assertGreater(count, 0)
 
         block = self.world.get_block(80, 64, 80)
-        self.assertIsNotNone(block)
+        assert isinstance(block, Block)
         self.assertEqual(block.name(), "minecraft:emerald_block")
 
         block = self.world.get_block(81, 64, 80)
-        self.assertIsNotNone(block)
+        assert isinstance(block, Block)
         self.assertEqual(block.name(), "minecraft:emerald_block")
 
 

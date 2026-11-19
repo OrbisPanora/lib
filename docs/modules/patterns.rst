@@ -9,7 +9,7 @@ Base Class
 Figure
 ^^^^^^
 
-.. autoclass:: patterns.Figure
+.. autoclass:: orbispanora_lib.patterns.Figure
    :members:
    :undoc-members:
    :show-inheritance:
@@ -20,7 +20,7 @@ Geometric Shapes
 Cube
 ^^^^
 
-.. autoclass:: patterns.Cube
+.. autoclass:: orbispanora_lib.patterns.Cube
    :members:
    :undoc-members:
    :show-inheritance:
@@ -28,7 +28,7 @@ Cube
 Pyramid
 ^^^^^^^
 
-.. autoclass:: patterns.Pyramid
+.. autoclass:: orbispanora_lib.patterns.Pyramid
    :members:
    :undoc-members:
    :show-inheritance:
@@ -36,7 +36,7 @@ Pyramid
 Sphere
 ^^^^^^
 
-.. autoclass:: patterns.Sphere
+.. autoclass:: orbispanora_lib.patterns.Sphere
    :members:
    :undoc-members:
    :show-inheritance:
@@ -44,7 +44,7 @@ Sphere
 Spiral
 ^^^^^^
 
-.. autoclass:: patterns.Spiral
+.. autoclass:: orbispanora_lib.patterns.Spiral
    :members:
    :undoc-members:
    :show-inheritance:

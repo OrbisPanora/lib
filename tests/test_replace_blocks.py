@@ -1,6 +1,7 @@
-from anvil import Region, Block
-import shutil
 import os
+import shutil
+
+from orbispanora_lib.anvil import Block, Region
 
 
 class TestReplaceBlocks:

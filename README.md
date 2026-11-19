@@ -7,17 +7,25 @@ A Python library designed to read, modify, and write **Minecraft world save file
 `anvil-parser2` is a **fork** of **0xTiger's anvil-parser**, which itself was originally forked from [matcool's anvil-parser](https://github.com/matcool/anvil-parser). The initial fork by 0xTiger aimed to add support for Minecraft versions **1.18 and above**. Our current version continues this development as the core data layer for a larger project that includes a REST API and a web-based isometric viewer.
 
 ## Installation
-You can install the library with uv or pip:
+Install the library from GitHub with uv or pip:
 
 ```bash
-cd lib
-uv pip install .      # or: pip install .
+uv add git+https://github.com/OrbisPanora/lib      # in a uv project
+pip install git+https://github.com/OrbisPanora/lib
+```
+
+The package is named `orbispanora_lib`. It contains the subpackages `anvil` (regions, chunks,
+blocks, worlds) and `patterns` (cubes, pyramids, spheres, spirals):
+
+```python
+from orbispanora_lib.anvil import World, Block
+from orbispanora_lib.patterns import Cube
 ```
 
 To work on the library itself, run `uv sync` (see [Tests](#tests)). The
 project is built with `uv build --wheel`, which writes the wheel to `dist/`.
 
-Requires Python 3.10 or newer, `NBT` 1.5.1 or newer and `frozendict` 2.5.1 or newer
+Requires Python 3.14 or newer, `NBT` 1.5.1 or newer and `frozendict` 2.5.1 or newer
 (installed automatically). Tested on Python 3.14.
 
 ## Tests
@@ -43,7 +51,7 @@ uv run --group docs sphinx-build -b html docs docs/_build
 #### Loading a Chunk
 
 ```python
-from anvil import Region, Chunk
+from orbispanora_lib.anvil import Region, Chunk
 
 # Load a region
 region = Region.from_file('region/r.0.0.mca')
@@ -85,7 +93,7 @@ for block in chunk.stream_chunk():
 #### Modifying Blocks
 
 ```python
-from anvil import Block
+from orbispanora_lib.anvil import Block
 
 # Replace a single block
 chunk.replace_block_at(5, 64, 10, "minecraft:diamond_block")
@@ -112,7 +120,7 @@ chunk.set_block(block, 8, 65, 8)
 #### Working with Biomes
 
 ```python
-from anvil import Biome
+from orbispanora_lib.anvil import Biome
 
 # Get the biome at a position
 biome = chunk.get_biome(8, 64, 8)
@@ -180,7 +188,7 @@ if section:
 new_section = chunk.create_section(section_y=5)
 
 # Add a block to a section's palette
-from anvil import Block
+from orbispanora_lib.anvil import Block
 section = chunk.get_section(4)
 stone = Block.from_name("minecraft:stone")
 palette_index = chunk.add_block_to_palette(section, stone)
@@ -228,7 +236,7 @@ with open('chunk_data.json', 'w') as f:
 #### Loading a Region
 
 ```python
-from anvil import Region
+from orbispanora_lib.anvil import Region
 
 # Load a region from file (default cache: 64 chunks)
 region = Region.from_file('region/r.0.0.mca')
@@ -270,7 +278,7 @@ region.clear_cache()
 #### Modifying Blocks
 
 ```python
-from anvil import Block
+from orbispanora_lib.anvil import Block
 
 # Set block at global coordinates
 region.set_block(Block.from_name("minecraft:diamond_block"), 100, 64, 200, 'r.0.0.mca')
@@ -324,7 +332,7 @@ with open('region.json', 'w') as f:
 #### Loading a World
 
 ```python
-from anvil import World
+from orbispanora_lib.anvil import World
 
 # Load a world (default: overworld, 512 chunk cache, 32 region cache) - the folder name is the name of your world not "region"
 world = World('path/to/world')
@@ -356,7 +364,7 @@ biome = world.get_biome(100, 64, -50)
 #### Modifying Blocks
 
 ```python
-from anvil import Block
+from orbispanora_lib.anvil import Block
 
 # Set single block
 world.set_block(Block.from_name("minecraft:diamond_block"), 100, 64, -50)
@@ -427,7 +435,7 @@ distribution = world.get_block_distribution(
 #### Biome Management
 
 ```python
-from anvil import Biome
+from orbispanora_lib.anvil import Biome
 
 # Set biome at position (4x4x4 volume)
 world.set_biome(Biome.from_name("minecraft:desert"), 100, 64, -50)
@@ -565,8 +573,8 @@ Spiral: Helical spiral structures
 
 #### Using Patterns
 ```python
-import anvil
-from patterns import Cube, Pyramid, Spiral, Sphere
+from orbispanora_lib import anvil
+from orbispanora_lib.patterns import Cube, Pyramid, Spiral, Sphere
 from nbt import nbt
 
 WORLD_PATH = r'PATH_TO_YOUR_WORLD'
@@ -587,7 +595,7 @@ world.apply_figure(
 
 ### Structure Manipulation
 ```python
-from anvil import Structure
+from orbispanora_lib.anvil import Structure
 
 world_path = 'path/to/your/save/folder
 structure_file = 'path/to/the/nbt-file' # ./plains_large_farm_1.nbt

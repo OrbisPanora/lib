@@ -7,7 +7,7 @@ Core Classes
 World
 ^^^^^
 
-.. autoclass:: anvil.World
+.. autoclass:: orbispanora_lib.anvil.World
    :members:
    :undoc-members:
    :show-inheritance:
@@ -15,7 +15,7 @@ World
 Region
 ^^^^^^
 
-.. autoclass:: anvil.Region
+.. autoclass:: orbispanora_lib.anvil.Region
    :members:
    :undoc-members:
    :show-inheritance:
@@ -23,7 +23,7 @@ Region
 Chunk
 ^^^^^
 
-.. autoclass:: anvil.Chunk
+.. autoclass:: orbispanora_lib.anvil.Chunk
    :members:
    :undoc-members:
    :show-inheritance:
@@ -31,7 +31,7 @@ Chunk
 Block
 ^^^^^
 
-.. autoclass:: anvil.Block
+.. autoclass:: orbispanora_lib.anvil.Block
    :members:
    :undoc-members:
    :show-inheritance:
@@ -39,7 +39,7 @@ Block
 Biome
 ^^^^^
 
-.. autoclass:: anvil.Biome
+.. autoclass:: orbispanora_lib.anvil.Biome
    :members:
    :undoc-members:
    :show-inheritance:
@@ -50,7 +50,7 @@ Empty Classes
 EmptyRegion
 ^^^^^^^^^^^
 
-.. autoclass:: anvil.EmptyRegion
+.. autoclass:: orbispanora_lib.anvil.EmptyRegion
    :members:
    :undoc-members:
    :show-inheritance:
@@ -58,7 +58,7 @@ EmptyRegion
 EmptyChunk
 ^^^^^^^^^^
 
-.. autoclass:: anvil.EmptyChunk
+.. autoclass:: orbispanora_lib.anvil.EmptyChunk
    :members:
    :undoc-members:
    :show-inheritance:
@@ -66,7 +66,7 @@ EmptyChunk
 EmptySection
 ^^^^^^^^^^^^
 
-.. autoclass:: anvil.EmptySection
+.. autoclass:: orbispanora_lib.anvil.EmptySection
    :members:
    :undoc-members:
    :show-inheritance:
@@ -77,7 +77,7 @@ Additional Components
 RawSection
 ^^^^^^^^^^
 
-.. autoclass:: anvil.RawSection
+.. autoclass:: orbispanora_lib.anvil.RawSection
    :members:
    :undoc-members:
    :show-inheritance:
@@ -85,7 +85,7 @@ RawSection
 Structure
 ^^^^^^^^^
 
-.. autoclass:: anvil.Structure
+.. autoclass:: orbispanora_lib.anvil.Structure
    :members:
    :undoc-members:
    :show-inheritance:
@@ -93,6 +93,6 @@ Structure
 Errors
 ------
 
-.. automodule:: anvil.errors
+.. automodule:: orbispanora_lib.anvil.errors
    :members:
    :undoc-members:

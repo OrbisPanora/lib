@@ -2,12 +2,12 @@ import os
 import sys
 sys.path.insert(0, os.path.abspath('..'))
 
-project = 'OrbisPanora Parser'
+project = 'OrbisPanora lib'
 copyright = '2025, OrbisPanora'
 author = 'OrbisPanora'
 
-version = '1.0.0'
-release = '1.0.0'
+version = '0.1.0'
+release = '0.1.0'
 
 extensions = [
     'sphinx.ext.autodoc',
@@ -31,3 +31,4 @@ autodoc_default_options = {
     'undoc-members': True,
     'show-inheritance': True,
 }
+napoleon_use_ivar = True
