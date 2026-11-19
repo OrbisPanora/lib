@@ -6,8 +6,8 @@ project = 'OrbisPanora Parser'
 copyright = '2025, OrbisPanora'
 author = 'OrbisPanora'
 
-version = '0.1'
-release = '0.1'
+version = '1.0.0'
+release = '1.0.0'
 
 extensions = [
     'sphinx.ext.autodoc',

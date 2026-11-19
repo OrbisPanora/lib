@@ -5,7 +5,6 @@ workflow:
 
 stages:
   - test
-  - sonar
   - build
   - push
   - deploy
@@ -20,29 +19,24 @@ include:
 
 test:
   stage: test
-  image: python:3.10
+  image: python:3.14
   before_script:
-    - python -m pip install --upgrade pip
-    - pip install pytest
-    - |
-      if [ -f tests/requirements.txt ]; then pip install -r tests/requirements.txt; fi
-    - pip install -e .
+    - pip install uv==0.12.10
   script:
-    - pytest
+    - uv run --locked pytest
   only:
     - master
   when : manual
 
 build_docs:
   stage: build
-  image: python:3.9
+  image: python:3.14
   before_script:
+    - pip install uv==0.12.10
     - export LC_ALL=C.UTF-8
     - export LANG=C.UTF-8
-    - python -m pip install --upgrade pip --root-user-action=ignore
-    - pip install -r docs/requirements.txt --root-user-action=ignore
   script:
-    - sphinx-build -b html docs docs/_build/html
+    - uv run --locked --group docs sphinx-build -b html docs docs/_build/html
   artifacts:
     paths:
       - docs/
@@ -66,34 +60,13 @@ push-documentation-image:
     - master
     - cicd/documentation
 
-sonarqube-check:
-  stage: sonar
-  image: 
-    name: sonarsource/sonar-scanner-cli:latest
-    entrypoint: [""]
-  variables:
-    SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"  
-    GIT_DEPTH: "0"  
-  cache:
-    key: "${CI_JOB_NAME}"
-    paths:
-      - .sonar/cache
-  script: 
-    - sonar-scanner
-  allow_failure: true
-  only:
-    - fixRelease
-    - main
-    - dev
-
 build_wheel:
   stage: build
-  image: python:3.10
+  image: python:3.14
   before_script:
-    - python -m pip install --upgrade pip
-    - pip install build
+    - pip install uv==0.12.10
   script:
-    - python -m build --wheel
+    - uv build --wheel
   artifacts:
     paths:
       - dist/*.whl

@@ -7,11 +7,35 @@ A Python library designed to read, modify, and write **Minecraft world save file
 `anvil-parser2` is a **fork** of **0xTiger's anvil-parser**, which itself was originally forked from [matcool's anvil-parser](https://github.com/matcool/anvil-parser). The initial fork by 0xTiger aimed to add support for Minecraft versions **1.18 and above**. Our current version continues this development as the core data layer for a larger project that includes a REST API and a web-based isometric viewer.
 
 ## Installation
-You can install the library using pip:
+You can install the library with uv or pip:
 
 ```bash
 cd lib
-pip install .
+uv pip install .      # or: pip install .
+```
+
+To work on the library itself, run `uv sync` (see [Tests](#tests)). The
+project is built with `uv build --wheel`, which writes the wheel to `dist/`.
+
+Requires Python 3.10 or newer, `NBT` 1.5.1 or newer and `frozendict` 2.5.1 or newer
+(installed automatically). Tested on Python 3.14.
+
+## Tests
+
+```bash
+uv sync          # creates .venv with the project and the dev group
+uv run pytest
+```
+
+The tests use the region file `tests/world_files/r.0.0.mca` and temporary
+directories. They do not read or write any other world.
+
+## API documentation
+
+The Sphinx sources are in `docs/`:
+
+```bash
+uv run --group docs sphinx-build -b html docs docs/_build
 ```
 ## Usage
 
