@@ -1,6 +1,6 @@
 """Bit, palette and section helpers shared by the chunk reader and writer."""
 
-from typing import Iterable, Optional
+from typing import Iterable, List, Optional, Sequence
 
 from nbt import nbt
 
@@ -100,7 +100,7 @@ def states_from_section(section: nbt.TAG_Compound) -> list:
     else:
         states = section['BlockStates']
 
-    return [state if state >= 0 else states + 2 ** 64
+    return [state if state >= 0 else state + 2 ** 64
         for state in states.value]
 
 def calculate_blockstates_size(bits: int) -> int:
@@ -221,6 +221,33 @@ def read_packed_index(states: list, index: int, bits: int, stretches: bool = Fal
     per_long = 64 // bits
     long_index, slot = divmod(index, per_long)
     return (states[long_index] >> (slot * bits)) & mask
+
+
+def pack_indices(indices: Sequence[int], bits: int) -> List[int]:
+    """
+    Pack palette indexes into the long array of a section (20w17a and later layout).
+
+    The first index goes in the lowest bits of the first long. Each long holds
+    ``64 // bits`` indexes and an index never spans two longs.
+
+    Parameters
+    ----------
+    indices : Sequence[int]
+        The palette index of each position, in order
+    bits : int
+        Number of bits per index
+
+    Returns
+    -------
+    List[int]
+        The unsigned 64-bit values of the long array
+    """
+    per_long = 64 // bits
+    longs = [0] * -(-len(indices) // per_long)
+    for position, index in enumerate(indices):
+        long_index, slot = divmod(position, per_long)
+        longs[long_index] |= index << (slot * bits)
+    return longs
 
 
 def props_match(nbt_props, block_props: dict) -> bool:

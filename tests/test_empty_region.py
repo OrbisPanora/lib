@@ -118,7 +118,9 @@ class TestEmptyChunk:
         chunk.set_biome(Biome('minecraft', 'plains'), 1, 1)
         saved = chunk.save()
         assert saved['DataVersion'].value == chunk.version
-        assert saved['Level']['xPos'].value == 0
+        assert saved['xPos'].value == 0
+        assert saved['Status'].value == 'minecraft:full'
+        assert 'Level' not in [tag.name for tag in saved.tags]
 
     @pytest.mark.parametrize('position', [(16, 0, 0), (0, 0, -1), (0, 100000, 0)])
     def test_out_of_bounds(self, position):
@@ -186,9 +188,11 @@ class TestEmptyRegion:
     def test_saved_chunk_is_zlib_nbt_with_a_block_section(self):
         region = EmptyRegion(0, 0)
         region.set_block(Block('minecraft', 'stone'), 1, 64, 1)
-        level = read_first_chunk(region.save())['Level']
-        assert level['xPos'].value == 0
-        assert any(section['Y'].value == 4 for section in level['Sections'])
+        chunk = read_first_chunk(region.save())
+        assert chunk['xPos'].value == 0
+        section = next(section for section in chunk['sections'] if section['Y'].value == 4)
+        assert 'palette' in section['block_states']
+        assert 'palette' in section['biomes']
 
 
 class TestWorldOnGeneratedRegion:

@@ -8,7 +8,7 @@ from .biome import Biome
 from .block import Block
 from .empty_section import EmptySection
 from .errors import EmptySectionAlreadyExists, OutOfBoundsCoordinates
-from .legacy import LEGACY_BIOMES_ID_MAP
+from .utilities import pack_indices
 
 if TYPE_CHECKING:
     from .raw_section import RawSection
@@ -38,13 +38,6 @@ def validate_chunk_coords_full(x: int, y: int, z: int) -> None:
 def biome_index(x: int, z: int) -> int:
     """Calculate biome index in chunk."""
     return z * CHUNK_SIZE + x
-
-
-def _get_legacy_biome_id(biome: Biome) -> int:
-    for k, v in LEGACY_BIOMES_ID_MAP.items():
-        if v == biome.id:
-            return k
-    raise ValueError(f'Biome id "{biome.id}" has no legacy equivalent')
 
 
 class EmptyChunk:
@@ -235,36 +228,50 @@ class EmptyChunk:
 
         return count
 
+    def _section_biomes(self) -> nbt.TAG_Compound:
+        """
+        The ``biomes`` tag of a section: one biome per 4x4x4 cell, 64 cells.
+
+        The chunk keeps one biome per column, so every cell takes the biome of the
+        column at its north-west corner, whatever its height.
+        """
+        names = [self.biomes[biome_index(cell_x * 4, cell_z * 4)].name()
+                 for _cell_y in range(4) for cell_z in range(4) for cell_x in range(4)]
+        palette_names = list(dict.fromkeys(names))
+        palette = nbt.TAG_List(name='palette', type=nbt.TAG_String)
+        palette.tags.extend(nbt.TAG_String(value=name) for name in palette_names)
+        tag = nbt.TAG_Compound(name='biomes')
+        tag.tags.append(palette)
+        if len(palette_names) > 1:
+            bits = (len(palette_names) - 1).bit_length()
+            data = nbt.TAG_Long_Array(name='data')
+            data.value = pack_indices([palette_names.index(name) for name in names], bits)
+            tag.tags.append(data)
+        return tag
+
     def save(self) -> nbt.NBTFile:
         """
-        Saves the chunk data to a :class:`NBTFile`
+        Saves the chunk data to a :class:`NBTFile`, in the layout of 1.18 and later.
 
         Notes
         -----
-        Does not contain most data a regular chunk would have,
-        but minecraft stills accept it.
+        Does not contain most data a regular chunk would have (heightmaps, light,
+        structures), but minecraft stills accept it and calculates what is missing.
+        Sections that only hold air are not saved.
         """
         root = nbt.NBTFile()
-        root.tags.append(nbt.TAG_Int(name='DataVersion',value=self.version))
-        level = nbt.TAG_Compound()
-        # Needs to be in a separate line because it just gets
-        # ignored if you pass it as a kwarg in the constructor
-        level.name = 'Level'
-        level.tags.extend([
-            nbt.TAG_List(name='Entities', type=nbt.TAG_Compound),
-            nbt.TAG_List(name='TileEntities', type=nbt.TAG_Compound),
-            nbt.TAG_List(name='LiquidTicks', type=nbt.TAG_Compound),
+        root.tags.extend([
+            nbt.TAG_Int(name='DataVersion', value=self.version),
             nbt.TAG_Int(name='xPos', value=self.x),
+            nbt.TAG_Int(name='yPos', value=-4),
             nbt.TAG_Int(name='zPos', value=self.z),
             nbt.TAG_Long(name='LastUpdate', value=0),
             nbt.TAG_Long(name='InhabitedTime', value=0),
-            nbt.TAG_Byte(name='isLightOn', value=1),
-            nbt.TAG_String(name='Status', value='full')
+            nbt.TAG_Byte(name='isLightOn', value=0),
+            nbt.TAG_String(name='Status', value='minecraft:full'),
+            nbt.TAG_List(name='block_entities', type=nbt.TAG_Compound),
         ])
-        sections = nbt.TAG_List(name='Sections', type=nbt.TAG_Compound)
-        biomes = nbt.TAG_Int_Array(name='Biomes')
-
-        biomes.value = [_get_legacy_biome_id(biome) for biome in self.biomes]
+        sections = nbt.TAG_List(name='sections', type=nbt.TAG_Compound)
         for s in self.sections:
             if s:
                 p = s.palette()
@@ -272,8 +279,8 @@ class EmptyChunk:
                 # So we can just skip them
                 if len(p) == 1 and p[0].name() == 'minecraft:air':
                     continue
-                sections.tags.append(s.save())
-        level.tags.append(sections)
-        level.tags.append(biomes)
-        root.tags.append(level)
+                section = s.save()
+                section.tags.append(self._section_biomes())
+                sections.tags.append(section)
+        root.tags.append(sections)
         return root

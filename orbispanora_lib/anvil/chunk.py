@@ -1,6 +1,6 @@
 """Chunk: reading and editing the blocks, biomes and sections of one chunk."""
 
-from typing import Generator, Literal, Optional, Tuple, Union, overload
+from typing import List, Generator, Literal, Optional, Tuple, Union, overload
 
 from nbt import nbt
 
@@ -50,7 +50,7 @@ class Chunk:
         ``self.data['TileEntities']`` as an attribute for easier use
     """
 
-    __slots__ = ("version", "data", "x", "z", "tile_entities")
+    __slots__ = ("version", "data", "x", "z", "tile_entities", "modified", "_on_modified")
 
     def __init__(self, nbt_data: nbt.NBTFile):
         """
@@ -76,6 +76,16 @@ class Chunk:
             self.tile_entities = self.data["TileEntities"]
         self.x = self.data["xPos"].value
         self.z = self.data["zPos"].value
+        #: True once a method changed the chunk, until its region saves it.
+        self.modified = False
+        # Set by the region that loaded the chunk, to keep the chunk until it is saved.
+        self._on_modified = None
+
+    def _mark_modified(self) -> None:
+        """Record that the chunk changed, and tell the region that loaded it."""
+        self.modified = True
+        if self._on_modified is not None:
+            self._on_modified()
 
     def get_section(self, y: int) -> Optional[nbt.TAG_Compound]:
         """
@@ -170,30 +180,7 @@ class Chunk:
 
             index = ((y % 16) // 4) * 16 + (z // 4) * 4 + (x // 4)
             bits = (len(biomes_palette) - 1).bit_length()
-            state = index * bits // 64
-            data = biomes[state]
-
-            # shift the number to the right to remove the left over bits
-            # and shift so the i'th biome is the first one
-            shifted_data = data >> ((bits * index) % 64)
-
-            # if there aren't enough bits it means the rest are in the next number
-            if 64 - ((bits * index) % 64) < bits:
-                data = biomes[state + 1]
-
-                # get how many bits are from a palette index of the next biome
-                leftover = (bits - ((state + 1) * 64 % bits)) % bits
-
-                # Make sure to keep the length of the bits in the first state
-                # Example: bits is 5, and leftover is 3
-                # Next state                Current state (already shifted)
-                # 0b101010110101101010010   0b01
-                # will result in bin_append(0b010, 0b01, 2) = 0b01001
-                shifted_data = bin_append(
-                    data & 2**leftover - 1, shifted_data, bits - leftover
-                )
-
-            palette_id = shifted_data & 2**bits - 1
+            palette_id = read_packed_index(biomes, index, bits, self.version < VERSION_20w17a)
             return Biome.from_name(biomes_palette[palette_id].value)
 
         else:
@@ -208,6 +195,20 @@ class Chunk:
                 index = (y // 4) * 4 * 4 + (z // 4) * 4 + (x // 4)
             biome_id = biomes[index]
             return Biome.from_numeric_id(biome_id)
+
+    @staticmethod
+    def _block_without_states(section: nbt.TAG_Compound) -> Block:
+        """
+        The block of every position of a section that has no ``data`` array.
+
+        Minecraft leaves the array out when the palette has one entry, so the whole
+        section is that block. Without a palette the section is taken as air.
+        """
+        try:
+            palette = palette_from_section(section)
+        except KeyError:
+            return Block.from_name("minecraft:air")
+        return Block.from_palette(palette[0]) if len(palette) else Block.from_name("minecraft:air")
 
     @overload
     def get_block(
@@ -302,7 +303,7 @@ class Chunk:
         try:
             states = states_from_section(section)
         except KeyError:
-            return Block.from_name("minecraft:air")
+            return self._block_without_states(section)
 
         # Number of bits each block is on BlockStates
         # Cannot be lower than 4
@@ -426,8 +427,9 @@ class Chunk:
         try:
             states = states_from_section(section)
         except KeyError:
+            uniform = self._block_without_states(section)
             for _ in range(4096):
-                yield air
+                yield uniform
             return
 
         palette = palette_from_section(section)
@@ -589,6 +591,15 @@ class Chunk:
 
         return data
 
+    @staticmethod
+    def _holds_only_air(section: nbt.TAG_Compound) -> bool:
+        """True if the palette of a flattened section is a single ``minecraft:air``. False if it cannot be told."""
+        try:
+            palette = palette_from_section(section)
+        except KeyError:
+            return False
+        return len(palette) == 1 and palette[0]['Name'].value == 'minecraft:air'
+
     def get_surface_height(self, x: int, z: int) -> int:
         """
         Get the Y coordinate of the highest non-air block at given X, Z coordinates.
@@ -616,13 +627,18 @@ class Chunk:
             raise OutOfBoundsCoordinates(f"X and Z must be in range 0-15, got X={x}, Z={z}")
 
         section_range = section_height_range(self.version)
-        for y in range(section_range.stop * 16 - 1, section_range.start * 16 - 1, -1):
-            try:
-                block = self.get_block(x, y, z, force_new=True)
-                if block and block.name() != 'minecraft:air':
-                    return y
-            except Exception:
+        for section_y in reversed(section_range):
+            section = self.get_section(section_y)
+            if section is None or self._holds_only_air(section):
                 continue
+            for y in range(section_y * 16 + 15, section_y * 16 - 1, -1):
+                try:
+                    # With a section given, Y is the position inside it.
+                    block = self.get_block(x, y - section_y * 16, z, section, force_new=True)
+                    if block and block.name() != 'minecraft:air':
+                        return y
+                except Exception:
+                    continue
 
         return section_range.start * 16
 
@@ -723,6 +739,7 @@ class Chunk:
         OutOfBoundsCoordinates
             If coordinates are out of bounds
         """
+        self._mark_modified()
         # Need Optimisation
         if not 0 <= x < 16:
             raise OutOfBoundsCoordinates(f"X ({x!r}) must be in range of 0 to 15")
@@ -744,6 +761,7 @@ class Chunk:
 
     def set_palette_in_section(self, section: nbt.TAG_Compound, palette: nbt.TAG_List) -> None:
         """Set the palette in a section directly."""
+        self._mark_modified()
         old_palette = self.get_palette(section) or ()
         if len(old_palette) != len(palette):
             raise ValueError("New palette must have the same length as the old palette.")
@@ -771,6 +789,7 @@ class Chunk:
         int
             The palette index of the newly added block
         """
+        self._mark_modified()
         block_states = section['block_states']
         palette = block_states['palette']
         new_entry = nbt.TAG_Compound()
@@ -1140,9 +1159,37 @@ class Chunk:
         except OutOfBoundsCoordinates:
             return False
 
-    def replace_blocks(self, old_block: Union[str, Block], new_block: Union[str, Block]) -> int:
-        """Replace all occurrences of a specific block type with another block type in the chunk."""
-        # Convert strings to Block objects if needed
+    def _section_indices(self, section: nbt.TAG_Compound) -> List[int]:
+        """The palette index of each of the 4096 blocks of a flattened (1.13 and later) section, in YZX order."""
+        palette = palette_from_section(section)
+        try:
+            states = states_from_section(section)
+        except KeyError:
+            return [0] * 4096
+        bits = max((len(palette) - 1).bit_length(), 4)
+        stretches = self.version < VERSION_20w17a
+        return [read_packed_index(states, i, bits, stretches) for i in range(4096)]
+
+    def replace_blocks(self, old_block: Union[str, Block], new_block: Union[str, Block],
+                       bounds: Optional[Tuple[int, int, int, int, int, int]] = None) -> int:
+        """
+        Replace all occurrences of a specific block type with another block type in the chunk.
+
+        Parameters
+        ----------
+        old_block : Union[str, Block]
+            The block to replace. With properties, only blocks with the same properties are replaced.
+        new_block : Union[str, Block]
+            The replacement block
+        bounds : Optional[Tuple[int, int, int, int, int, int]]
+            ``(min_x, min_y, min_z, max_x, max_y, max_z)``, X and Z in the chunk (0 to 15) and Y global.
+            If None, the whole chunk.
+
+        Returns
+        -------
+        int
+            The number of blocks replaced
+        """
         if isinstance(old_block, str):
             old_block = Block.from_name(old_block)
         if isinstance(new_block, str):
@@ -1150,38 +1197,50 @@ class Chunk:
 
         old_block_name = old_block.name()
         old_props = old_block.properties
+        min_x, min_y, min_z, max_x, max_y, max_z = bounds if bounds else (0, -2 ** 31, 0, 15, 2 ** 31, 15)
         count = 0
 
-        section_range = section_height_range(self.version)
-
-        for section_y in section_range:
+        for section_y in section_height_range(self.version):
+            if section_y * 16 + 15 < min_y or section_y * 16 > max_y:
+                continue
             section = self.get_section(section_y)
             if section is None:
                 continue
 
-            for local_y in range(16):
-                for z in range(16):
-                    for x in range(16):
-                        global_y = section_y * 16 + local_y
+            try:
+                palette = palette_from_section(section)
+            except KeyError:
+                palette = None
 
-                        try:
-                            current_block = self.get_block(x, global_y, z, force_new=True)
+            if palette is None:
+                positions = range(4096)
+            else:
+                # Only positions whose palette entry is the old block can change.
+                wanted = set()
+                for index, entry in enumerate(palette):
+                    block = Block.from_palette(entry)
+                    if block.name() == old_block_name and (not old_props or block.properties == old_props):
+                        wanted.add(index)
+                if not wanted:
+                    continue
+                indices = self._section_indices(section)
+                positions = [i for i, value in enumerate(indices) if value in wanted]
 
-                            # Check if block name matches
-                            if current_block.name() != old_block_name:
-                                continue
-
-                            # If old_block has no properties, match any variant
-                            # Otherwise, check if properties match
-                            if old_props and current_block.properties != old_props:
-                                continue
-
-                            # Replace the block
-                            if self.replace_block_at(x, global_y, z, new_block):
-                                count += 1
-
-                        except (IndexError, OutOfBoundsCoordinates):
-                            continue
+            for position in positions:
+                local_y, z, x = position // 256, position // 16 % 16, position % 16
+                global_y = section_y * 16 + local_y
+                if not (min_x <= x <= max_x and min_z <= z <= max_z and min_y <= global_y <= max_y):
+                    continue
+                if palette is None:
+                    # Before 1.13 there is no palette to look at, so each block is compared.
+                    current_block = self.get_block(x, global_y, z, force_new=True)
+                    if current_block.name() != old_block_name or (old_props and current_block.properties != old_props):
+                        continue
+                try:
+                    if self.replace_block_at(x, global_y, z, new_block):
+                        count += 1
+                except (IndexError, OutOfBoundsCoordinates):
+                    continue
 
         return count
 
@@ -1204,6 +1263,7 @@ class Chunk:
         OutOfBoundsCoordinates
             If coordinates are out of bounds
         """
+        self._mark_modified()
         if x not in range(16):
             raise OutOfBoundsCoordinates(f"X ({x!r}) must be in range of 0 to 15")
         if z not in range(16):
@@ -1263,6 +1323,7 @@ class Chunk:
         -------
          chunk.set_chunk_biome(Biome.from_name("minecraft:desert"))
         """
+        self._mark_modified()
         biome_name = biome.name()
         section_range = section_height_range(self.version)
 

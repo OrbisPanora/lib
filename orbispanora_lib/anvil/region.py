@@ -27,7 +27,7 @@ class Region:
     _chunk_cache: :class:`CacheManager` or None
         Optional LRU cache for loaded chunks
     """
-    __slots__ = ('data', '_chunk_cache', 'region_x', 'region_z', 'file_path')
+    __slots__ = ('data', '_chunk_cache', '_modified', 'region_x', 'region_z', 'file_path')
 
     def __init__(self, data: bytes, cache_size: Optional[int] = 64, region_x: Optional[int] = None, region_z: Optional[int] = None, file_path: Optional[str] = None):
         """
@@ -45,6 +45,9 @@ class Region:
         """
         self.data = data
         self._chunk_cache = CacheManager(max_size=cache_size) if cache_size else None
+        # Chunks changed since the last save. They stay here when the LRU cache drops them,
+        # so that no change is lost whatever the cache size.
+        self._modified: dict = {}
 
         self.region_x: Optional[int] = region_x
         self.region_z: Optional[int] = region_z
@@ -132,6 +135,10 @@ class Region:
 
         :rtype: :class:`anvil.Chunk`
         """
+        modified = self._modified.get((chunk_x, chunk_z))
+        if modified is not None:
+            return modified
+
         if self._chunk_cache is not None:
             cache_key = (chunk_x, chunk_z)
             cached_chunk = self._chunk_cache.get(cache_key)
@@ -140,6 +147,7 @@ class Region:
 
         # Load chunk from region file
         chunk = anvil.Chunk.from_region(self, chunk_x, chunk_z)
+        chunk._on_modified = lambda: self._modified.__setitem__((chunk_x, chunk_z), chunk)
 
         # Cache the loaded chunk if caching is enabled
         if self._chunk_cache is not None and chunk is not None:
@@ -565,16 +573,18 @@ class Region:
         if path is None:
             raise ValueError("No file_path provided and no file_path stored in region")
 
-        if self._chunk_cache is None:
-            return 0
-
         count = 0
         for chunk_z in range(32):
             for chunk_x in range(32):
                 cache_key = (chunk_x, chunk_z)
-                chunk = self._chunk_cache.get(cache_key)
+                chunk = self._modified.get(cache_key)
+                if chunk is None and self._chunk_cache is not None:
+                    chunk = self._chunk_cache.get(cache_key)
                 if chunk is not None:
                     self.save_chunk(chunk, path)
                     count += 1
 
+        for chunk in self._modified.values():
+            chunk.modified = False
+        self._modified.clear()
         return count

@@ -8,6 +8,7 @@ from nbt import nbt
 
 from . import Block
 from .errors import OutOfBoundsCoordinates
+from .utilities import pack_indices
 
 
 # dirty mixin to change q to Q
@@ -111,20 +112,19 @@ class EmptySection:
 
     def palette(self) -> Tuple[Block, ...]:
         """
-        Generates and returns a tuple of all the different blocks in the section
-        The order can change as it uses sets, but should be fine when saving since
-        it's only called once.
+        Generates and returns a tuple of all the different blocks in the section,
+        in the order of their first appearance. Air comes with the first ``None``.
         """
-        palette = {block for block in self.blocks if block is not None}
-        if None in self.blocks:
-            palette.add(self.air)
-        return tuple(palette)
+        seen = {}
+        for block in self.blocks:
+            seen.setdefault(self.air if block is None else block)
+        return tuple(seen)
 
     def blockstates(self, palette: Optional[Tuple[Block, ...]]=None) -> array.array:
         """
-        Returns a list of each block's index in the palette.
-
-        This is used in the BlockStates tag of the section.
+        Returns the packed palette index of each block, as stored in the ``data`` tag of
+        the section: at least 4 bits per block, the first block in the lowest bits of the
+        first long, and no block split between two longs (the layout of 20w17a and later).
 
         Parameters
         ----------
@@ -132,33 +132,10 @@ class EmptySection:
             Section's palette. If not given will generate one.
         """
         palette = palette or self.palette()
-        # Create palette index mapping for O(1) lookup
         palette_map = {block: idx for idx, block in enumerate(palette)}
-
-        # Calculate bits per block (minimum 4 bits)
         bits = max((len(palette) - 1).bit_length(), 4)
-        states = array.array('Q')
-        current = 0
-        current_len = 0
-
-        # Pack block indices into longs
-        for block in self.blocks:
-            if block is None:
-                index = palette_map[self.air]
-            else:
-                index = palette_map[block]
-            # If it's more than 64 bits then add to list and start over
-            # with the remaining bits from last one
-            if current_len + bits > 64:
-                leftover = 64 - current_len
-                states.append(bin_append(index & ((1 << leftover) - 1), current, length=current_len))
-                current = index >> leftover
-                current_len = bits - leftover
-            else:
-                current = bin_append(index, current, length=current_len)
-                current_len += bits
-        states.append(current)
-        return states
+        indices = [palette_map[self.air if block is None else block] for block in self.blocks]
+        return array.array('Q', pack_indices(indices, bits))
 
     def to_dict(self, simplify: bool = True) -> dict:
         """
@@ -212,14 +189,15 @@ class EmptySection:
 
     def save(self) -> nbt.TAG_Compound:
         """
-        Saves the section to a TAG_Compound and is used inside the chunk tag
-        This is missing the SkyLight tag, but minecraft still accepts it anyway
+        Saves the section to a TAG_Compound, in the layout of 1.18 and later, to be put in
+        the ``sections`` list of a chunk. The ``biomes`` tag is added by the chunk. There is
+        no light data; Minecraft calculates it when the chunk is loaded.
         """
         root = nbt.TAG_Compound()
         root.tags.append(nbt.TAG_Byte(name='Y', value=self.y))
 
         palette = self.palette()
-        nbt_pal = nbt.TAG_List(name='Palette', type=nbt.TAG_Compound)
+        nbt_pal = nbt.TAG_List(name='palette', type=nbt.TAG_Compound)
         for block in palette:
             tag = nbt.TAG_Compound()
             tag.tags.append(nbt.TAG_String(name='Name', value=block.name()))
@@ -240,11 +218,14 @@ class EmptySection:
                         properties.tags.append(value)
                 tag.tags.append(properties)
             nbt_pal.tags.append(tag)
-        root.tags.append(nbt_pal)
 
-        states = self.blockstates(palette=palette)
-        bstates = nbt.TAG_Long_Array(name='BlockStates')
-        bstates.value = states
-        root.tags.append(bstates)
+        block_states = nbt.TAG_Compound(name='block_states')
+        block_states.tags.append(nbt_pal)
+        # A section with one block type has no data array.
+        if len(palette) > 1:
+            data = nbt.TAG_Long_Array(name='data')
+            data.value = self.blockstates(palette=palette)
+            block_states.tags.append(data)
+        root.tags.append(block_states)
 
         return root

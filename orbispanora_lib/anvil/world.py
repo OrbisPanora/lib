@@ -501,6 +501,19 @@ class World:
         self.invalidate_chunk(x >> 4, z >> 4)
         return replaced
 
+    def _all_region_coordinates(self) -> List[Tuple[int, int]]:
+        """The coordinates of every region of the dimension: the ones in memory and the region files on disk."""
+        coordinates = set(self.regions)
+        if os.path.isdir(self.region_dir):
+            for name in os.listdir(self.region_dir):
+                parts = name.split('.')
+                if len(parts) == 4 and parts[0] == 'r' and parts[3] == 'mca':
+                    try:
+                        coordinates.add((int(parts[1]), int(parts[2])))
+                    except ValueError:
+                        continue
+        return sorted(coordinates)
+
     def replace_blocks(self, old_block: Union[str, Block], new_block: Union[str, Block],
                        bounds: Optional[Tuple[int, int, int, int, int, int]] = None) -> int:
         """
@@ -546,24 +559,20 @@ class World:
         max_chunk_z = max_z >> 4
 
         if not bounds:
-            for region in self.regions.values():
-                if isinstance(region, Region):
-                    for chunk_x in range(32):
-                        for chunk_z in range(32):
-                            try:
-                                chunk = region.get_chunk(chunk_x, chunk_z)
-                                if chunk:
-                                    chunk_count = chunk.replace_blocks(old_block, new_block)
-                                    count += chunk_count
-                            except Exception:
-                                continue
-                elif isinstance(region, EmptyRegion):
-                    for chunk_x in range(32):
-                        for chunk_z in range(32):
+            for region_x, region_z in self._all_region_coordinates():
+                region = self.get_region(region_x, region_z)
+                for chunk_x in range(32):
+                    for chunk_z in range(32):
+                        try:
                             chunk = region.get_chunk(chunk_x, chunk_z)
-                            if chunk:
-                                chunk_count = chunk.replace_blocks(old_block, new_block)
-                                count += chunk_count
+                        except Exception:
+                            continue
+                        if not isinstance(chunk, (Chunk, EmptyChunk)):
+                            continue
+                        chunk_count = chunk.replace_blocks(old_block, new_block)
+                        if chunk_count:
+                            count += chunk_count
+                            self.invalidate_chunk(region_x * 32 + chunk_x, region_z * 32 + chunk_z)
         else:
             for chunk_x in range(min_chunk_x, max_chunk_x + 1):
                 for chunk_z in range(min_chunk_z, max_chunk_z + 1):
@@ -578,18 +587,9 @@ class World:
                             chunk_max_z < min_z or chunk_min_z > max_z):
                             continue
 
-                        # Replace blocks in this chunk with bounds checking
-                        for x in range(max(0, min_x - chunk_min_x), min(16, max_x - chunk_min_x + 1)):
-                            for z in range(max(0, min_z - chunk_min_z), min(16, max_z - chunk_min_z + 1)):
-                                for y in range(min_y, max_y + 1):
-                                    try:
-                                        current_block = chunk.get_block(x, y, z, force_new=True)
-                                        if current_block.name() == old_block_name:
-                                            if not old_block.properties or current_block.properties == old_block.properties:
-                                                if chunk.replace_block_at(x, y, z, new_block):
-                                                    count += 1
-                                    except (IndexError, OutOfBoundsCoordinates):
-                                        continue
+                        count += chunk.replace_blocks(old_block, new_block, (
+                            max(0, min_x - chunk_min_x), min_y, max(0, min_z - chunk_min_z),
+                            min(15, max_x - chunk_min_x), max_y, min(15, max_z - chunk_min_z)))
 
         return count
 

@@ -6,11 +6,8 @@ from typing import Iterable, Optional, Sequence, cast
 from nbt import nbt
 
 from . import Block, EmptySection
+from .utilities import pack_indices
 
-
-def bin_append(a, b, length=None):
-    length = length or b.bit_length()
-    return (a << length) | b
 
 class RawSection:
     """
@@ -40,20 +37,7 @@ class RawSection:
     def blockstates(self, palette: Optional[Sequence[Block]]=None) -> array.array:
         """Refer to :class:`EmptySection.blockstates()`"""
         bits = max((len(self._palette) - 1).bit_length(), 4)
-        states = array.array('Q')
-        current = 0
-        current_len = 0
-        for index in self.blocks:
-            if current_len + bits > 64:
-                leftover = 64 - current_len
-                states.append(bin_append(index & ((1 << leftover) - 1), current, length=current_len))
-                current = index >> leftover
-                current_len = bits - leftover
-            else:
-                current = bin_append(index, current, length=current_len)
-                current_len += bits
-        states.append(current)
-        return states
+        return array.array('Q', pack_indices(list(self.blocks), bits))
 
     def save(self) -> nbt.TAG_Compound:
         """Refer to :class:`EmptySection.save()`"""
