@@ -1,13 +1,15 @@
 OrbisPanora lib Documentation
 =================================
 
-Welcome to OrbisPanora lib's documentation. This is an updated version of the anvil-parser2, 
-a parser for the Minecraft anvil file format that supports all Minecraft versions.
+OrbisPanora lib reads, edits and writes Minecraft worlds in the Anvil format. It is a fork of
+anvil-parser2 and is written for Minecraft Java 1.21.1. Older chunk layouts can be read. Chunks
+written from scratch use the 1.18 and later layout.
 
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
+   usage
    modules/anvil
    modules/patterns
 
