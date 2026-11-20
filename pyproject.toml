@@ -1,29 +1,56 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "orbispanora-lib"
-version = "1.0.0"
-authors = [
-    {name = "OrbisPanora"}
-]
-description = "An updated version of the anvil-parser2, parser for the Minecraft anvil file format, supports all Minecraft versions"
+version = "0.1.0"
+description = "Parser and writer for the Minecraft Anvil file format (fork of anvil-parser2), used by the OrbisPanora API."
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.14"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "OrbisPanora" }]
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
+    "Typing :: Typed",
 ]
 dependencies = [
-    "nbt",
-    "frozendict",
+    "nbt>=1.5.1",
+    "frozendict>=2.5.1",
 ]
 
 [project.urls]
-Homepage = "https://codefirst.iut.uca.fr/gitlab/IUT_INF63/projets-etudiants/OrbisPanora/lib"
+Homepage = "https://github.com/OrbisPanora/lib"
+Issues = "https://github.com/OrbisPanora/lib/issues"
+
+[dependency-groups]
+dev = ["pytest>=9.2", "pytest-cov>=7.1", "pylint>=4.0", "ty>=0.0.80"]
+docs = ["sphinx>=8", "sphinx-rtd-theme>=3.0"]
+
+[tool.uv]
+default-groups = ["dev"]
 
 [tool.setuptools]
-packages = ["anvil", "patterns"]
-include-package-data = true
+packages = ["orbispanora_lib", "orbispanora_lib.anvil", "orbispanora_lib.patterns"]
+
+[tool.setuptools.package-data]
+"orbispanora_lib.anvil" = ["*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+log_cli = true
+log_cli_level = "INFO"
+log_cli_format = "%(levelname)8s %(message)s"
+filterwarnings = [
+    # raised by the nbt library
+    "ignore::DeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["orbispanora_lib"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true

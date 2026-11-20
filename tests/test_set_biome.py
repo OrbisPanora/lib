@@ -1,6 +1,7 @@
-import shutil
 import os
-from anvil import Region, Block, Biome
+import shutil
+
+from orbispanora_lib.anvil import Biome, Region
 
 
 class TestBiomeAndBlockOperations:

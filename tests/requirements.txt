@@ -1,4 +1,0 @@
-NBT==1.5.1
-frozendict==2.0.2
-
-# Please name your test world as written in the code

@@ -1,0 +1,38 @@
+[BASIC]
+variable-rgx=(([a-z][a-zA-Z0-9]{2,30})|(_[a-zA-Z0-9]*))$
+argument-rgx=(([a-z][a-zA-Z0-9]{2,30})|(_[a-zA-Z0-9]*))$
+attr-rgx=(([a-z][a-zA-Z0-9]{2,30})|(_[a-zA-Z0-9]*))$
+function-rgx=(test_(\d+)_)?[a-z]+((\d)|([A-Z0-9][a-z0-9]+))*([A-Z])?$
+method-rgx=(([a-z][a-zA-Z0-9]{2,30})|(_[a-zA-Z0-9]*)|(__[a-zA-Z0-9]{2,30}__))$
+const-rgx=(([A-Z_][A-Z0-9_]*)|(__.*__))$
+
+# Names that are always accepted, separated by a comma
+good-names=i,j,k,n,e,x,y,z
+
+# Names that are always refused, separated by a comma
+bad-names=foo,bar,baz,toto,tutu,tata
+
+# Minimum number of public methods for a class (see R0903).
+min-public-methods=0
+
+# Maximum number of arguments for a function or method
+max-args=12
+
+# Limits raised for the Anvil reader: its functions follow the file format's layout, which
+# has many branches and locals. Splitting them is a refactor listed in the tracker, not part
+# of the v0.1.0 cleanup.
+max-locals=30
+max-branches=30
+max-statements=100
+max-nested-blocks=8
+max-positional-arguments=10
+max-public-methods=50
+max-module-lines=1700
+
+[MESSAGES CONTROL]
+# R0401: the anvil package imports its own submodules in a cycle by design
+#        (region <-> chunk <-> __init__).
+# R0801: the patterns share the same constructor documentation.
+# W0718: the readers skip corrupt chunks with `except Exception`; narrowing the exceptions
+#        needs tests with corrupt files first.
+disable=C0301,W0603,W1203,C0103,C1803,R1705,R1720,R0401,R0801,W0718

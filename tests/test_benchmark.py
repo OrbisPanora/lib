@@ -1,8 +1,9 @@
+import array
 import logging
 import math
 import time
-import array
-from anvil import EmptyRegion, Block, RawSection
+
+from orbispanora_lib.anvil import Block, EmptyRegion, RawSection
 
 LOGGER = logging.getLogger(__name__)
 
@@ -12,7 +13,7 @@ class TestRegionOperations:
         region = EmptyRegion(0, 0)
         block = Block('iron_block')
 
-        def func(x: int, z: int) -> int:
+        def func(x: float, z: float) -> float:
             return math.sin(x * x + z * z) * 0.5 + 0.5
 
         w = 256
@@ -46,7 +47,7 @@ class TestRegionOperations:
         air = Block('air')
         palette = (air, block)
 
-        def func(x: int, z: int) -> int:
+        def func(x: float, z: float) -> float:
             return math.sin(x * x + z * z) * 0.5 + 0.5
 
         w = 256

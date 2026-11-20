@@ -1,7 +1,7 @@
-OrbisPanora Parser Documentation
+OrbisPanora lib Documentation
 =================================
 
-Welcome to OrbisPanora Parser's documentation. This is an updated version of the anvil-parser2, 
+Welcome to OrbisPanora lib's documentation. This is an updated version of the anvil-parser2, 
 a parser for the Minecraft anvil file format that supports all Minecraft versions.
 
 .. toctree::
@@ -18,7 +18,7 @@ You can install the library using pip:
 
 .. code-block:: bash
 
-   pip install git+ssh://git@codefirst.iut.uca.fr/IUT_INF63/projets-etudiants/OrbisPanora/lib.git@origin/dev
+   pip install git+https://github.com/OrbisPanora/lib
 
 Quick Start
 -----------
@@ -28,7 +28,7 @@ Basic Usage
 
 .. code-block:: python
 
-   import anvil
+   from orbispanora_lib import anvil
 
    # Load a region file
    region = anvil.Region.from_file('r.0.0.mca')
@@ -48,7 +48,7 @@ World Management
 
 .. code-block:: python
 
-   import anvil
+   from orbispanora_lib import anvil
 
    # Load a world
    world = anvil.World('./world_folder')
@@ -67,8 +67,8 @@ Using Patterns
 
 .. code-block:: python
 
-   import anvil
-   import patterns
+   from orbispanora_lib import anvil
+   from orbispanora_lib import patterns
 
    world = anvil.World('./world_folder')
 
