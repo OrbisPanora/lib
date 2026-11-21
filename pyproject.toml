@@ -21,12 +21,16 @@ dependencies = [
     "frozendict>=2.5.1",
 ]
 
+[project.optional-dependencies]
+# Decoding a whole chunk into an array (Chunk.block_array).
+fast = ["numpy>=2.3"]
+
 [project.urls]
 Homepage = "https://github.com/OrbisPanora/lib"
 Issues = "https://github.com/OrbisPanora/lib/issues"
 
 [dependency-groups]
-dev = ["pytest>=9.2", "pytest-cov>=7.1", "pylint>=4.0", "ty>=0.0.80"]
+dev = ["pytest>=9.2", "pytest-cov>=7.1", "pylint>=4.0", "ty>=0.0.80", "numpy>=2.3"]
 docs = ["sphinx>=8", "sphinx-rtd-theme>=3.0"]
 
 [tool.uv]

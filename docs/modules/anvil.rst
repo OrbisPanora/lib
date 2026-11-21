@@ -28,6 +28,13 @@ Chunk
    :undoc-members:
    :show-inheritance:
 
+ChunkBlocks
+^^^^^^^^^^^
+
+.. autoclass:: orbispanora_lib.anvil.ChunkBlocks
+   :members:
+   :show-inheritance:
+
 Block
 ^^^^^
 

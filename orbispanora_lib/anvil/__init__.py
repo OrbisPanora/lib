@@ -2,6 +2,7 @@
 
 from .biome import Biome
 from .block import Block, OldBlock
+from .block_array import ChunkBlocks
 from .chunk import Chunk
 from .empty_chunk import EmptyChunk
 from .empty_region import EmptyRegion

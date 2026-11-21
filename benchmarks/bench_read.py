@@ -156,7 +156,8 @@ def first_section(chunk: Chunk):
 def bench_chunks(files: List[Path], per_region: int, block_calls: int) -> Dict[str, object]:
     """Time each step of reading a chunk: decompress, parse, build, per-block reads, surface walk."""
     steps: Dict[str, List[float]] = {key: [] for key in (
-        'compressed_kb', 'zlib_ms', 'nbt_ms', 'unzipped_kb', 'get_block_us', 'heightmap_ms', 'surface_blocks_ms', 'blocks_per_chunk')}
+        'compressed_kb', 'zlib_ms', 'nbt_ms', 'unzipped_kb', 'get_block_us', 'heightmap_ms', 'surface_blocks_ms', 'blocks_per_chunk',
+        'block_array_ms')}
     versions = set()
     for path in files:
         region = read_region(path)
@@ -176,6 +177,10 @@ def bench_chunks(files: List[Path], per_region: int, block_calls: int) -> Dict[s
                 for call in range(block_calls):
                     chunk.get_block(call % 16, (call // 16) % 16, (call // 256) % 16, section, force_new=True)
                 steps['get_block_us'].append((time.perf_counter() - start) / block_calls * 1e6)
+            try:
+                steps['block_array_ms'].append(timed(chunk.block_array))
+            except ImportError:
+                pass  # numpy is not installed: the metric is left out
             steps['heightmap_ms'].append(timed(chunk.to_heightmap))
             surface: list = []
             steps['surface_blocks_ms'].append(timed(lambda: surface.extend(chunk.get_surface_blocks())))

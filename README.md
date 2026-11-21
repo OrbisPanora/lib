@@ -24,6 +24,10 @@ pip install git+https://github.com/OrbisPanora/lib@v0.1.0
 Each release also has a wheel and a source archive on the
 [releases page](https://github.com/OrbisPanora/lib/releases).
 
+`Chunk.block_array()` decodes a whole chunk at once and needs numpy, which is an optional
+extra: `pip install "orbispanora-lib[fast] @ git+https://github.com/OrbisPanora/lib@<tag>"`
+(or `uv add "orbispanora-lib[fast] @ git+https://github.com/OrbisPanora/lib@<tag>"`).
+
 ## Quick start
 
 The package is `orbispanora_lib`. It has the subpackages `anvil` (regions, chunks, blocks,
