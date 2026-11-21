@@ -42,7 +42,7 @@ class World:
     }
 
     def __init__(self, world_folder: str, dimension: str = 'overworld',
-                 chunk_cache_size: int = 512, region_cache_size: int = 32):
+                 chunk_cache_size: int = 128, region_cache_size: Optional[int] = 32, lazy_regions: bool = True):
         """
         Initialize a World object with caching support.
 
@@ -53,9 +53,14 @@ class World:
         dimension: str
             Dimension to load ('overworld', 'nether', or 'end'). Default: 'overworld'
         chunk_cache_size: int
-            Maximum number of chunks to cache (default: 512)
+            Maximum number of decoded chunks to cache (default: 128). A decoded chunk takes about
+            240 KB of memory.
         region_cache_size: int
-            Maximum number of regions to keep in memory (default: 32)
+            Maximum number of region files kept open (default: 32). Regions with unsaved changes are
+            kept as well, until they are saved. 0 or None keeps every region that was read.
+        lazy_regions: bool
+            If True (default) a region file is not read into memory: its header is, and each chunk when it
+            is asked for. If False the whole file is read (see :meth:`Region.from_file`).
 
         Example
         -------
@@ -68,6 +73,7 @@ class World:
 
         self.world_folder = world_folder
         self.dimension = dimension
+        self._lazy_regions = lazy_regions
         self.regions: Dict[Tuple[int, int], Union[Region, EmptyRegion]] = {}
 
         # Initialize caches (None disables caching)
@@ -113,18 +119,41 @@ class World:
         region_path = os.path.join(self.region_dir, f"r.{region_x}.{region_z}.mca")
         if os.path.exists(region_path):
             # Disable Region's internal cache since World has its own cache
-            region = Region.from_file(region_path, cache_size=None)
-            self.regions[region_coords] = region
-            if self._region_cache is not None:
-                self._region_cache.put(region_coords, region)
-            return region
-
-        # Create new empty region
-        empty_region = EmptyRegion(region_x, region_z)
-        self.regions[region_coords] = empty_region
+            region: Union[Region, EmptyRegion] = Region.from_file(region_path, cache_size=None, lazy=self._lazy_regions)
+        else:
+            # Create new empty region
+            region = EmptyRegion(region_x, region_z)
+        self.regions[region_coords] = region
         if self._region_cache is not None:
-            self._region_cache.put(region_coords, empty_region)
-        return empty_region
+            self._region_cache.put(region_coords, region)
+        self._release_old_regions()
+        return region
+
+    @staticmethod
+    def _holds_nothing_to_keep(region: Union[Region, EmptyRegion]) -> bool:
+        """True if dropping the region loses nothing: it has no unsaved change and can be read again from its file."""
+        if isinstance(region, Region):
+            return not region._modified  # pylint: disable=protected-access
+        return all(chunk is None for chunk in region.chunks)
+
+    def _release_old_regions(self) -> None:
+        """
+        Drop the regions that the region cache no longer holds, so memory stays bounded.
+
+        A region with unsaved changes is kept until it is saved. A region that is dropped is closed, and
+        is read again from its file if it is asked for later.
+        """
+        if self._region_cache is None:
+            return
+        for coords in list(self.regions):
+            if coords in self._region_cache.cache:
+                continue
+            region = self.regions[coords]
+            if not self._holds_nothing_to_keep(region):
+                continue
+            del self.regions[coords]
+            if isinstance(region, Region):
+                region.close()
 
     def get_chunk(self, chunk_x: int, chunk_z: int) -> Union[Chunk, EmptyChunk, None]:
         """
@@ -1105,7 +1134,9 @@ class World:
             elif isinstance(region, Region):
                 region.save(region_path)
 
-        del self.regions[region_coords]
+        region = self.regions.pop(region_coords)
+        if isinstance(region, Region):
+            region.close()
 
         if self._region_cache is not None:
             self._region_cache.invalidate(region_coords)
@@ -1404,6 +1435,22 @@ class World:
         """
         return self.fill_area("minecraft:air", x1, y1, z1, x2, y2, z2)
 
+    def close(self) -> None:
+        """
+        Forget every region and chunk held in memory and release the open region files.
+
+        Unsaved changes are lost: call :meth:`save` first. The world can be used again afterwards, and
+        reads the files again.
+        """
+        for region in self.regions.values():
+            if isinstance(region, Region):
+                region.close()
+        self.regions.clear()
+        if self._chunk_cache:
+            self._chunk_cache.clear()
+        if self._region_cache:
+            self._region_cache.clear()
+
     def switch_dimension(self, dimension: str, save_current: bool = True) -> None:
         """
         Switch to a different dimension (overworld, nether, or end).
@@ -1430,11 +1477,7 @@ class World:
         if save_current:
             self.save()
 
-        self.regions.clear()
-        if self._chunk_cache:
-            self._chunk_cache.clear()
-        if self._region_cache:
-            self._region_cache.clear()
+        self.close()
 
         self.dimension = dimension
         self.region_dir = os.path.join(self.world_folder, self.DIMENSIONS[dimension])

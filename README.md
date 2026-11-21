@@ -49,6 +49,12 @@ world.save()
 
 `World.save()` overwrites the region files. Work on a copy of a world you care about.
 
+Memory: a `World` does not read region files into memory. It reads the header of a region
+and each chunk when it is asked for, keeps at most `region_cache_size` (32) region files open
+and `chunk_cache_size` (128) decoded chunks (about 240 KB each), and releases the rest.
+Regions with unsaved changes are kept until `World.save()`. `lazy_regions=False` reads whole
+files again (10 to 14 MB per region in a large world), and `World.close()` releases everything.
+
 More examples (chunks, biomes, heights, areas, patterns, structures) are in
 [`docs/usage.rst`](docs/usage.rst). The reference is generated from the code:
 

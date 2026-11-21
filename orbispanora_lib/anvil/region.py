@@ -5,7 +5,7 @@ import os
 import re
 import zlib
 from io import BytesIO
-from typing import BinaryIO, Optional, Tuple, Union
+from typing import BinaryIO, Optional, Tuple, Union, cast
 
 from nbt import nbt
 
@@ -16,18 +16,95 @@ from .errors import GZipChunkData
 from .versions import VERSION_21w43a
 
 
+#: Size of the header of a region file: the 4-byte location and the 4-byte timestamp of each of 1024 chunks.
+HEADER_BYTES = 8192
+
+
+class FileBytes:
+    """
+    The bytes of a file, read from the file when asked for instead of held in memory.
+
+    It supports what :class:`Region` needs of its data: ``len()``, ``[index]`` giving an int and
+    ``[start:stop]`` giving bytes. The 8 KiB header is kept in memory, because every chunk lookup reads it.
+    The file is opened on first use and again after :meth:`close`, so a closed object stays usable.
+    """
+    __slots__ = ('path', '_fd', '_header', '_size')
+
+    def __init__(self, path: str):
+        self.path = path
+        self._fd: Optional[int] = None
+        self._header = b''
+        self._size = 0
+        self._open()
+
+    def _open(self) -> int:
+        """Open the file if it is not open and read its size and header."""
+        if self._fd is None:
+            self._fd = os.open(self.path, os.O_RDONLY)
+            self._size = os.fstat(self._fd).st_size
+            self._header = os.pread(self._fd, HEADER_BYTES, 0)
+        return self._fd
+
+    def close(self) -> None:
+        """Release the file descriptor. The next read opens the file again."""
+        if self._fd is not None:
+            os.close(self._fd)
+            self._fd = None
+
+    def __del__(self):
+        try:
+            self.close()
+        except OSError:
+            pass
+
+    def __len__(self) -> int:
+        self._open()
+        return self._size
+
+    def _read(self, start: int, stop: int) -> bytes:
+        """Bytes ``start`` to ``stop`` of the file; fewer if the file ends before ``stop``."""
+        self._open()
+        stop = min(stop, self._size)
+        if start >= stop:
+            return b''
+        if stop <= len(self._header):
+            return self._header[start:stop]
+        return os.pread(self._open(), stop - start, start)
+
+    def __getitem__(self, key: Union[int, slice]) -> Union[int, bytes]:
+        if isinstance(key, slice):
+            if key.step not in (None, 1):
+                raise ValueError("FileBytes does not support a step")
+            start = key.start or 0
+            stop = key.stop if key.stop is not None else len(self)
+            return self._read(start, stop)
+        if key < 0:
+            key += len(self)
+        data = self._read(key, key + 1)
+        if not data:
+            raise IndexError("index out of range")
+        return data[0]
+
+    def read_all(self) -> bytes:
+        """The whole file as bytes. The file is closed afterwards."""
+        data = self._read(0, len(self))
+        self.close()
+        return data
+
+
 class Region:
     """
     Region handler for Minecraft worlds with optional chunk caching
 
     Attributes
     ----------
-    data: :class:`bytes`
-        Region file (``.mca``) as bytes
+    data: :class:`bytes` or :class:`FileBytes`
+        Region file (``.mca``) as bytes. A region made with ``lazy=True`` reads the file when asked for
+        chunks instead of holding all of it.
     _chunk_cache: :class:`CacheManager` or None
         Optional LRU cache for loaded chunks
     """
-    __slots__ = ('data', '_chunk_cache', '_modified', 'region_x', 'region_z', 'file_path')
+    __slots__ = ('_data', '_chunk_cache', '_modified', 'region_x', 'region_z', 'file_path')
 
     def __init__(self, data: bytes, cache_size: Optional[int] = 64, region_x: Optional[int] = None, region_z: Optional[int] = None, file_path: Optional[str] = None):
         """
@@ -43,7 +120,7 @@ class Region:
         file_path : Optional[str]
             Path to the region file
         """
-        self.data = data
+        self._data: Union[bytes, FileBytes] = data
         self._chunk_cache = CacheManager(max_size=cache_size) if cache_size else None
         # Chunks changed since the last save. They stay here when the LRU cache drops them,
         # so that no change is lost whatever the cache size.
@@ -52,6 +129,31 @@ class Region:
         self.region_x: Optional[int] = region_x
         self.region_z: Optional[int] = region_z
         self.file_path: Optional[str] = file_path
+
+    @property
+    def data(self) -> bytes:
+        """
+        The region file content. For a lazy region this is a :class:`FileBytes`, which gives the same
+        results as bytes for ``len()``, an index and a slice.
+        """
+        return cast(bytes, self._data)
+
+    @data.setter
+    def data(self, value: bytes) -> None:
+        self._data = value
+
+    def close(self) -> None:
+        """
+        Release the file of a region made with ``lazy=True``. Reading a chunk afterwards opens it again.
+        A region that holds its bytes in memory is not affected.
+        """
+        if isinstance(self._data, FileBytes):
+            self._data.close()
+
+    def _materialize(self) -> None:
+        """Read the whole file into memory. Changing the region needs its bytes, and the file is then rewritten."""
+        if isinstance(self._data, FileBytes):
+            self._data = self._data.read_all()
 
     @staticmethod
     def header_offset(chunk_x: int, chunk_z: int) -> int:
@@ -210,6 +312,7 @@ class Region:
         if path is None:
             raise ValueError("No file_path provided and no file_path stored in region")
 
+        self._materialize()
         nbt_data = chunk.data
 
         if chunk.version >= VERSION_21w43a:
@@ -296,7 +399,7 @@ class Region:
             f.write(self.data)
 
     @classmethod
-    def from_file(cls, file: Union[str, BinaryIO], cache_size: Optional[int] = 64):
+    def from_file(cls, file: Union[str, BinaryIO], cache_size: Optional[int] = 64, lazy: bool = False):
         """
         Creates a new region with the data from reading the given file
 
@@ -307,6 +410,11 @@ class Region:
         cache_size : Optional[int]
             Maximum number of chunks to cache. If None, caching is disabled.
             Default is 64 chunks.
+        lazy : bool
+            Only for a file path. If True the file is not read into memory: the 8 KiB header is read, and the
+            bytes of each chunk when it is asked for. Memory then follows the chunks used, not the file size
+            (10 to 14 MB per region in a large world). Changing the region reads the whole file first.
+            The file must not be shortened by another program while the region is open. Default False.
         """
         if isinstance(file, str):
             base = os.path.basename(file)
@@ -316,6 +424,8 @@ class Region:
 
             x = int(match.group(1))
             z = int(match.group(2))
+            if lazy:
+                return cls(data=cast(bytes, FileBytes(file)), cache_size=cache_size, region_x=x, region_z=z, file_path=file)
             with open(file, 'rb') as f:
                 return cls(data=f.read(), cache_size=cache_size, region_x=x, region_z=z, file_path=file)
         else:

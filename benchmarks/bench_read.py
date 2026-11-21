@@ -130,9 +130,30 @@ def raw_chunk(region: Region, chunk_x: int, chunk_z: int) -> bytes:
     return bytes(region.data[offset + 5:offset + 4 + length])
 
 
+def lazy_regions_memory(files: List[Path]) -> Dict[str, float]:
+    """Resident memory after holding more and more regions that read their file when asked, one chunk read from each."""
+    held: List[Region] = []
+    memory = {}
+    before = rss_mb()
+    for index, path in enumerate(files, start=1):
+        region = Region.from_file(str(path), cache_size=None, lazy=True)
+        chunks = existing_chunks(region)
+        if chunks:
+            region.get_chunk(*chunks[len(chunks) // 2])
+        held.append(region)
+        if index in (1, 10, 100) or index == len(files):
+            memory[str(index)] = round(rss_mb() - before, 1)
+    for region in held:
+        region.close()
+    return memory
+
+
 def bench_regions(files: List[Path]) -> Dict[str, object]:
     """Time to read each file and its size, plus resident memory after holding more and more regions."""
     sizes = [path.stat().st_size / 1e6 for path in files]
+    # The lazy measurement comes first: memory freed by the eager one would otherwise hide its growth.
+    lazy_memory = lazy_regions_memory(files)
+    lazy_times = [timed(lambda path=path: Region.from_file(str(path), cache_size=None, lazy=True)) for path in files]
     times = [timed(lambda path=path: read_region(path)) for path in files]
     held: List[Region] = []
     memory = {}
@@ -141,7 +162,8 @@ def bench_regions(files: List[Path]) -> Dict[str, object]:
         held.append(read_region(path))
         if index in (1, 10, 100) or index == len(files):
             memory[str(index)] = round(rss_mb() - before, 1)
-    return {'file_mb': summary(sizes), 'open_ms': summary(times), 'rss_growth_mb_after_n_regions': memory}
+    return {'file_mb': summary(sizes), 'open_ms': summary(times), 'open_lazy_ms': summary(lazy_times),
+            'rss_growth_mb_after_n_regions': memory, 'rss_growth_lazy_mb_after_n_regions': lazy_memory}
 
 
 def first_section(chunk: Chunk):
