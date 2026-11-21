@@ -53,3 +53,6 @@ examples/aaa
 
 # Coverage data
 .coverage
+
+# Benchmark results (machine-specific)
+benchmarks/results/

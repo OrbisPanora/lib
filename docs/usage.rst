@@ -43,6 +43,12 @@ Reading Blocks
        if block.id == 'minecraft:diamond_ore':
            print(f"Found diamond ore!")
 
+   # Read many blocks of one chunk at once (needs numpy: pip install orbispanora-lib[fast])
+   blocks = chunk.block_array()
+   print(blocks.names)          # block names; names[0] is 'minecraft:air'
+   print(blocks.indices.shape)  # (384, 16, 16): [y - blocks.min_y][z][x]
+   print(blocks.name_at(5, 64, 10))
+
    # Iterate through all blocks in the chunk
    for block in chunk.stream_chunk():
        if block.id == 'minecraft:chest':

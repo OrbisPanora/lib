@@ -6,6 +6,7 @@ from nbt import nbt
 
 from .biome import Biome
 from .block import Block, OldBlock
+from .block_array import ChunkBlocks, decode_chunk_blocks
 from .errors import ChunkNotFound, OutOfBoundsCoordinates
 from .region import Region
 from .utilities import (
@@ -1158,6 +1159,21 @@ class Chunk:
             return True
         except OutOfBoundsCoordinates:
             return False
+
+    def block_array(self) -> ChunkBlocks:
+        """
+        Decode the blocks of the whole chunk into a palette and an array of palette indices.
+
+        Each section is unpacked once with array operations, which is much faster than calling
+        :meth:`get_block` for many positions of the same chunk. The result does not keep block
+        properties. See :class:`ChunkBlocks` for the layout.
+
+        Raises
+        ------
+        ImportError
+            If numpy is not installed (``pip install orbispanora-lib[fast]``).
+        """
+        return decode_chunk_blocks(self)
 
     def _section_indices(self, section: nbt.TAG_Compound) -> List[int]:
         """The palette index of each of the 4096 blocks of a flattened (1.13 and later) section, in YZX order."""
